@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cjm-substrate-qt-kit"
-version = "0.0.1"
-description = "Shared foundations for the PySide6 application lane (DEC c4b0d6e5): the loop-thread session base (a private asyncio loop behind a Qt shell), the row-style palette, and the keybinding helper — extracted at their first real duplication between cjm-graph-workbench-qt and cjm-transcription-qt, never speculatively. Born on-graph."
+version = "0.0.2"
+description = "Shared foundations for the PySide6 application lane (DEC c4b0d6e5): the loop-thread session base (a private asyncio loop behind a Qt shell), the row-style palette, the keybinding helper, the semantic theme layer, the KeymapRegistry verb table, and the find-bar universal — extracted at their first real duplication (or first claimant), never speculatively. Born on-graph."
 readme = "README.md"
 requires-python = ">=3.12"
 license = {text = "Apache-2.0"}
