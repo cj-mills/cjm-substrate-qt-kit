@@ -11,6 +11,7 @@ Shared foundations for the PySide6 application lane (DEC c4b0d6e5): LoopThreadSe
 - **`cjm_substrate_qt_kit.keymap`** — KeymapRegistry: the QAction layer from the toolbox verdict (DEC d55f1d0f).
 - **`cjm_substrate_qt_kit.keys`** — The keybinding helper both shells grew independently.
 - **`cjm_substrate_qt_kit.loopthread`** — The loop-thread session base: a private asyncio loop behind a Qt shell.
+- **`cjm_substrate_qt_kit.player`** — Span playback via QMediaPlayer — the Qt lane's one audio component (kit
 - **`cjm_substrate_qt_kit.style`** — Row-style vocabulary for the lane's list widgets.
 - **`cjm_substrate_qt_kit.testbed`** — Readability test-bed: error-seeded reading trials measuring which theme
 - **`cjm_substrate_qt_kit.testbed_corpus`** — Bundled clean-prose corpus for the readability test-bed.
@@ -33,6 +34,10 @@ Shared foundations for the PySide6 application lane (DEC c4b0d6e5): LoopThreadSe
 ### `cjm_substrate_qt_kit.loopthread`
 
 - `LoopThreadSession` _class_ — Owns one daemon asyncio loop thread; subclasses put their subsystem's
+
+### `cjm_substrate_qt_kit.player`
+
+- `SpanPlayer` _class_ — Play/stop one file span at a time; replay gestures re-enter, escape
 
 ### `cjm_substrate_qt_kit.style`
 
