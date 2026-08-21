@@ -113,6 +113,33 @@ def test_focused_match_paints_distinct(app):
     assert focused[0].cursor.selectionStart() == pane.textCursor().selectionStart()
 
 
+def test_region_follows_focus_into_searchable_pane(app):
+    # Re-attach on focus change (item d2d81098): while the bar is open, focus
+    # landing in another searchable pane moves the region there — paint moves,
+    # the old pane clears, and non-searchable widgets never steal the region.
+    pane_a, bar = make(app)
+    pane_b = QPlainTextEdit()
+    pane_b.setPlainText("beta beta")
+    bar.field.setText("beta")
+    assert len(pane_a.extraSelections()) == 3
+    bar._on_focus_changed(None, pane_b)
+    assert bar.pane is pane_b
+    assert pane_a.extraSelections() == []          # old paint cleared
+    assert len(pane_b.extraSelections()) == 2      # live search re-ran here
+    assert bar.count.text() == "1/2"
+    from PySide6.QtWidgets import QLabel
+    bar._on_focus_changed(None, QLabel())          # chrome/non-text widget
+    assert bar.pane is pane_b                      # attachment holds
+
+
+def test_closed_bar_ignores_focus_changes(app):
+    pane_a, bar = make(app)
+    pane_b = QPlainTextEdit()
+    bar.close_bar()
+    bar._on_focus_changed(None, pane_b)
+    assert bar.pane is pane_a
+
+
 def test_open_seeds_pattern_from_selection(app):
     pane = QPlainTextEdit()
     pane.setPlainText(TEXT)

@@ -21,7 +21,7 @@ Shared foundations for the PySide6 application lane (DEC c4b0d6e5): LoopThreadSe
 
 ### `cjm_substrate_qt_kit.findbar`
 
-- `FindBar` _class_ — Incremental find over an attached text pane.
+- `FindBar` _class_ — Incremental find over an attached text pane. While the bar is open the
 
 ### `cjm_substrate_qt_kit.keymap`
 

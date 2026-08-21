@@ -19,16 +19,24 @@ from typing import List, Optional
 from cjm_substrate_qt_kit.theme import current_theme
 from PySide6.QtCore import QRegularExpression, Qt
 from PySide6.QtGui import QColor, QTextCursor, QTextDocument
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QLineEdit, QTextEdit, QToolButton, QWidget
+from PySide6.QtWidgets import (QApplication, QHBoxLayout, QLabel, QLineEdit, QTextEdit, QToolButton,
+                               QWidget)
 
 
 class FindBar(QWidget):
-    """Incremental find over an attached text pane."""
+    """Incremental find over an attached text pane. While the bar is open the
+    search REGION follows focus: clicking into any searchable pane re-attaches
+    the bar there (drive call-out d2d81098 — the bind-at-open behavior cost a
+    close-and-reopen to switch panes; re-attach ratified over a region toggle,
+    which would crowd as regions multiply)."""
 
     def __init__(self, pane=None, parent: Optional[QWidget] = None):
         super().__init__(parent)
         self.pane = pane
         self._origin: Optional[QTextCursor] = None
+        app = QApplication.instance()
+        if app is not None:
+            app.focusChanged.connect(self._on_focus_changed)
         self.field = QLineEdit(self)
         self.field.setPlaceholderText("find")
         self.field.textChanged.connect(self._on_typed)
@@ -73,6 +81,21 @@ class FindBar(QWidget):
         if self.pane is not None and self.pane is not pane:
             self.pane.setExtraSelections([])
         self.pane = pane
+
+    def _on_focus_changed(self, _old, new) -> None:
+        """Follow focus into a searchable pane while open: re-attach, take the
+        new pane's position as the origin, re-run the live search there. Bar
+        chrome (the field, buttons) and non-text widgets never steal the
+        attachment."""
+        if not self.isVisible() or new is None or new is self.pane:
+            return
+        if not (hasattr(new, "find") and hasattr(new, "setExtraSelections")
+                and hasattr(new, "textCursor")):
+            return
+        self.attach(new)
+        self._origin = QTextCursor(new.textCursor())
+        if self.field.text():
+            self._step(backward=False, stay_on_origin=True)
 
     def open(self) -> None:
         """Show the bar, remember the pane's position as the search origin,
