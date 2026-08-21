@@ -68,6 +68,51 @@ def test_close_clears_paint_and_hides(app):
     assert pane.extraSelections() == []
 
 
+def test_match_case_option_narrows(app):
+    pane, bar = make(app)
+    pane.setPlainText("Beta beta BETA")
+    bar.field.setText("beta")
+    assert bar.count.text() == "1/3"       # case-insensitive default
+    bar.case_btn.setChecked(True)
+    assert bar.count.text() == "1/1"       # exact-case only
+
+def test_whole_word_option_excludes_substrings(app):
+    pane, bar = make(app)
+    pane.setPlainText("beta betamax beta")
+    bar.field.setText("beta")
+    assert bar.count.text() == "1/3"
+    bar.word_btn.setChecked(True)
+    assert bar.count.text() == "1/2"       # betamax drops out
+
+
+def test_regex_option_and_invalid_pattern(app):
+    pane, bar = make(app)
+    pane.setPlainText("cat cot cut")
+    bar.regex_btn.setChecked(True)
+    bar.field.setText("c[ao]t")
+    assert bar.count.text() == "1/2"
+    bar.field.setText("c[")                # invalid — flagged, never raises
+    assert bar.count.text() == "regex?"
+    assert pane.extraSelections() == []
+
+
+def test_literal_default_escapes_regex_metacharacters(app):
+    pane, bar = make(app)
+    pane.setPlainText("a.c abc")
+    bar.field.setText("a.c")
+    assert bar.count.text() == "1/1"       # literal dot, not any-char
+
+
+def test_focused_match_paints_distinct(app):
+    pane, bar = make(app)
+    bar.field.setText("beta")
+    selections = pane.extraSelections()
+    focused = [s for s in selections
+               if s.format.background().color().alpha() > 100]
+    assert len(focused) == 1               # exactly one strong block — the current hit
+    assert focused[0].cursor.selectionStart() == pane.textCursor().selectionStart()
+
+
 def test_open_seeds_pattern_from_selection(app):
     pane = QPlainTextEdit()
     pane.setPlainText(TEXT)
