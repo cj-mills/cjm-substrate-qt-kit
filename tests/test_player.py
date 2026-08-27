@@ -45,3 +45,18 @@ def test_whole_file_play_rides_the_guard(qapp):
     p.play("/tmp/b.wav", rate=1.5)                # burst -> coalesces
     assert p._req == ("/tmp/b.wav", 0.0, None, 1.5)
     p.close()
+
+
+def test_degenerate_span_sounds_nothing(qapp):
+    """Zero-span replay finding (2026-08-26): a start==end request at the
+    player's ms resolution must never reach QMediaPlayer — handed over, the
+    file ran on to its natural end (a whole aseg WAV). Idle or inside the
+    start gap, the guard stops and returns without coalescing."""
+    p = SpanPlayer()
+    p.play_span("/tmp/a.wav", 506.8, 506.8)      # idle -> refused outright
+    assert p._end_ms is None and p._req is None and not p._pending
+    assert p._player.source().isEmpty()          # never handed to the backend
+    p.play_span("/tmp/a.wav", 0.0, 1.0)          # idle -> starts (pending on load)
+    p.play_span("/tmp/b.wav", 2.0, 2.0)          # degenerate inside the gap -> stop
+    assert p._req is None and not p._req_timer.isActive() and not p._pending
+    p.close()

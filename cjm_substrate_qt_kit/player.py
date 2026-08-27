@@ -65,6 +65,15 @@ class SpanPlayer:
         An idle request starts immediately; inside the start gap it coalesces
         (see _MIN_START_GAP_S). Stop-then-play always: stale audio under a
         fresh focus would mismatch the card on screen."""
+        if end_s is not None and int(end_s * 1000) <= max(0, int(start_s * 1000)):
+            # Degenerate span at the player's ms resolution (a chunk nudged
+            # down to nothing, e.g. the partial-word case): sound NOTHING.
+            # Handed to QMediaPlayer, a start==end window never trips the
+            # stop-at-end check cleanly and the file runs on to its natural
+            # end — the whole aseg WAV (zero-span replay finding, 2026-08-26).
+            # Stop-then-return keeps the stale-audio rule for every caller.
+            self.stop()
+            return
         if time.monotonic() - self._last_start < _MIN_START_GAP_S:
             self._req = (path, start_s, end_s, rate)
             self._player.stop()
