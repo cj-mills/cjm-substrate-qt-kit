@@ -76,6 +76,7 @@ def test_match_case_option_narrows(app):
     bar.case_btn.setChecked(True)
     assert bar.count.text() == "1/1"       # exact-case only
 
+
 def test_whole_word_option_excludes_substrings(app):
     pane, bar = make(app)
     pane.setPlainText("beta betamax beta")
