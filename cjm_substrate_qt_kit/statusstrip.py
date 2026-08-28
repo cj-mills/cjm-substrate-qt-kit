@@ -26,18 +26,21 @@ class StatusStrip(QWidget):
     Every label is mouse-SELECTABLE (copy a segment position or session id
     straight out of the footer — walkthrough call-out 04519af8; keyboard
     focus never lands on a label, so the owner's bare-letter keys keep
-    working). The chip row is RESPONSIVE (call-out e26add76): an overlong
-    plain-text chip ELIDES to chip_max_width with its full text in the
-    tooltip, and chips that no longer fit the row FLOW onto further rows
-    underneath, so the strip's minimum width is its widest chip — never
-    the sum of the row, which used to pin the whole window's minimum."""
+    working). The chip row is RESPONSIVE (call-out e26add76): chips that
+    no longer fit the row FLOW onto further rows underneath, and a chip
+    wider than the whole strip ELIDES to the strip's width — full text
+    whenever there is room for it (user ruling 2026-08-27: never elide
+    while space is available), the full text in the tooltip while cut.
+    The strip's minimum width is chip_floor + margins — the narrowest a
+    chip is ever elided to — never the sum of the row, which used to pin
+    the whole window's minimum."""
 
     def __init__(self, parent: Optional[QWidget] = None, hints: bool = True,
-                 chip_max_width: int = 320):
+                 chip_floor: int = 320):
         super().__init__(parent)
         self._chips: Dict[str, QLabel] = {}
         self._chip_text: Dict[str, str] = {}   # full text behind an elided chip
-        self._chip_max_width = chip_max_width
+        self._chip_floor = chip_floor
         self._chips_box = QHBoxLayout()
         self._chips_box.setContentsMargins(0, 0, 0, 0)
         self._chips_box.setSpacing(12)
@@ -97,8 +100,9 @@ class StatusStrip(QWidget):
 
     def set_chip(self, name: str, text: str, role: Optional[str] = None) -> None:
         """Create or update a permanent chip; chips keep declaration order.
-        Plain text wider than chip_max_width elides (full text in the
-        tooltip and chip_text); rich-text chips paint as given."""
+        The chip paints its full text; _reflow elides it only while the
+        strip is narrower than the text (full text in the tooltip and
+        chip_text meanwhile). Rich-text chips paint as given, always."""
         chip = self._chips.get(name)
         if chip is None:
             chip = QLabel("", self)
@@ -106,9 +110,8 @@ class StatusStrip(QWidget):
             self._chips[name] = chip
             self._chips_box.addWidget(chip)
         self._chip_text[name] = text
-        shown = self._elide(chip, text)
-        chip.setText(shown)
-        chip.setToolTip(text if shown != text else "")
+        chip.setText(text)
+        chip.setToolTip("")
         self._set_role(chip, role)
         self._reflow()
 
@@ -189,14 +192,19 @@ class StatusStrip(QWidget):
         self._reflow()
 
     def minimumSizeHint(self) -> QSize:
-        """The strip's minimum WIDTH is its widest chip (bounded by the
-        elision), not the chip row's sum: the layout's own minimum would
+        """The strip's minimum WIDTH is the widest chip's FLOOR — a plain
+        chip elides down to chip_floor, a rich-text chip is as wide as it
+        paints — not the chip row's sum: the layout's own minimum would
         pin the window at the full single-row width and the flow could
         never engage (call-out e26add76). Height stays the layout's — it
         already counts the flowed rows."""
         base = super().minimumSizeHint()
-        widest = max((c.sizeHint().width() for c in self._chips.values()),
-                     default=0)
+        widest = 0
+        for name, chip in self._chips.items():
+            full = self._chip_text.get(name, "")
+            natural = self._natural_width(chip, full)
+            widest = max(widest, natural if self._is_rich(full)
+                         else min(natural, self._chip_floor))
         if not widest:
             return base
         return QSize(min(base.width(), widest + 12), base.height())
@@ -204,12 +212,12 @@ class StatusStrip(QWidget):
     def _reflow(self) -> None:
         """Responsive layout, two moves (drive verdict 2026-08-25 + call-out
         e26add76): chips that no longer fit the row FLOW onto rows of their
-        own underneath (declaration order, greedy fill), and when the
-        chips can no longer share the row with the readout's full text, the
-        readout moves to its OWN full-width row — word-wrapped and left-
-        aligned, nothing truncated. Both return once space allows. This is
-        the R3 reflow idea from the layout registries applied to the
-        footer."""
+        own underneath (declaration order, greedy fill; a chip wider than
+        the strip elides to it), and when the chips can no longer share the
+        row with the readout's full text, the readout moves to its OWN
+        full-width row — word-wrapped and left-aligned, nothing truncated.
+        Both return once space allows. This is the R3 reflow idea from the
+        layout registries applied to the footer."""
         self._flow_chips()
         fm = self.readout.fontMetrics()
         needed = fm.horizontalAdvance(self.readout.text())
@@ -236,15 +244,18 @@ class StatusStrip(QWidget):
                                       | Qt.AlignmentFlag.AlignVCenter)
 
     def _flow_chips(self) -> None:
-        """Distribute the chips over rows for the current width: a chip
-        joins the row while it fits, else opens the next row (a chip wider
-        than the strip still gets a row of its own). Re-parents widgets
-        only when the assignment actually changes."""
+        """Distribute the chips over rows for the current width: each chip
+        first gets its text FIT to the strip — full while the strip is at
+        least as wide as the text, elided to the strip's width (never
+        below chip_floor) otherwise — then joins the row while it fits,
+        else opens the next row. Re-parents widgets only when the row
+        assignment actually changes."""
         avail = max(1, self.width() - 12)
         spacing = self._chips_box.spacing()
         wanted: List[List[str]] = [[]]
         used = 0
         for name, chip in self._chips.items():
+            self._fit_chip(chip, self._chip_text.get(name, ""), avail)
             width = chip.sizeHint().width()
             need = width if not wanted[-1] else used + spacing + width
             if wanted[-1] and need > avail:
@@ -280,17 +291,30 @@ class StatusStrip(QWidget):
             self._chip_rows.append(row)
         return self._chip_rows[index]
 
-    def _elide(self, chip: QLabel, text: str) -> str:
-        """Plain text past chip_max_width elides right; rich text (the
-        apps' colored span chips) is never cut — a tag split would
-        corrupt it."""
-        if self._chip_max_width <= 0 or re.search(r"<[A-Za-z/!]", text):
-            return text
-        fm = chip.fontMetrics()
-        if fm.horizontalAdvance(text) <= self._chip_max_width:
-            return text
-        return fm.elidedText(text, Qt.TextElideMode.ElideRight,
-                             self._chip_max_width)
+    def _fit_chip(self, chip: QLabel, full: str, avail: int) -> None:
+        """Paint `full` when the strip affords it, else the right-elided
+        text that fits `avail` (never narrower than chip_floor); the
+        tooltip carries the full text only while it is cut. Rich text (the
+        apps' colored span chips) is never cut — a tag split corrupts."""
+        shown = full
+        if not self._is_rich(full) and self._natural_width(chip, full) > avail:
+            shown = chip.fontMetrics().elidedText(
+                full, Qt.TextElideMode.ElideRight,
+                max(avail - 4, self._chip_floor))
+        if chip.text() != shown:
+            chip.setText(shown)
+            chip.setToolTip(full if shown != full else "")
+
+    def _natural_width(self, chip: QLabel, full: str) -> int:
+        """The width the chip WANTS: its painted size hint for rich text,
+        the full text's advance (+ the label's own slack) for plain."""
+        if self._is_rich(full):
+            return chip.sizeHint().width()
+        return chip.fontMetrics().horizontalAdvance(full) + 4
+
+    @staticmethod
+    def _is_rich(text: str) -> bool:
+        return bool(re.search(r"<[A-Za-z/!]", text))
 
     def _selectable(self, label: QLabel) -> None:
         """Mouse selection on, keyboard focus off: the flags alone would

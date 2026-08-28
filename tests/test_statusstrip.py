@@ -127,26 +127,40 @@ def test_labels_select_by_mouse_without_taking_focus(app):
     strip.close()
 
 
-def test_long_plain_chip_elides_with_full_text_in_tooltip(app):
-    """Footer minimum-width, move (a) (call-out e26add76): a plain-text chip
-    wider than chip_max_width elides right, the full text rides the
-    tooltip + chip_text, a short chip is untouched, and a RICH-TEXT chip
-    (the apps' colored spans) is never cut."""
+def test_chip_elides_only_when_the_strip_is_narrower_than_it(app):
+    """Footer minimum-width, move (a) (call-out e26add76; user ruling
+    2026-08-27: never elide while space is available): a long plain-text
+    chip paints WHOLE while the strip affords it, elides right to the
+    strip's width once it does not (never below chip_floor) — full text in
+    the tooltip and chip_text meanwhile — and comes back whole when the
+    space returns. A RICH-TEXT chip (the apps' colored spans) is never cut,
+    and the strip's minimum width is the floor, not the chip."""
     title = ("2026-05-23_How we're going to power the AI data center "
              "buildout Energy Sec. Chris Wright & Scott Nolan")
-    strip = StatusStrip(chip_max_width=200)
+    strip = StatusStrip(chip_floor=200)
+    strip.resize(1400, 60)
     strip.set_chip("source", title)
     chip = strip._chips["source"]
-    assert chip.text() != title and chip.text().endswith("…")
-    assert chip.sizeHint().width() <= 200 + 4
-    assert chip.toolTip() == title
+    assert chip.text() == title and chip.toolTip() == ""      # room: whole
     assert strip.chip_text("source") == title
-    strip.set_chip("source", "How I use LLMs")
-    assert chip.text() == "How I use LLMs" and chip.toolTip() == ""
-    rich = "<span style='color:#3f9d55'> journal→cjm-capability-graph-sqlite-with-a-very-long-name </span>"
+    assert strip.minimumSizeHint().width() <= 200 + 12
+    strip.resize(400, 60)
+    strip._reflow()
+    assert chip.text() != title and chip.text().endswith("…")  # cut to fit
+    assert chip.sizeHint().width() <= 400 - 12 + 4
+    assert chip.toolTip() == title and strip.chip_text("source") == title
+    strip.resize(150, 60)
+    strip._reflow()
+    assert chip.sizeHint().width() > 150 - 12                 # the floor holds
+    assert chip.sizeHint().width() <= 200 + 8
+    strip.resize(1400, 60)
+    strip._reflow()
+    assert chip.text() == title and chip.toolTip() == ""      # whole again
+    rich = ("<span style='color:#3f9d55'> journal→cjm-capability-graph-"
+            "sqlite-with-a-very-long-name </span>")
+    strip.resize(200, 60)
     strip.set_chip("journal", rich)
     assert strip._chips["journal"].text() == rich
-    assert StatusStrip(chip_max_width=0)._elide(chip, title) == title
 
 
 def test_chip_row_flows_and_minimum_is_the_widest_chip(app):
@@ -164,7 +178,7 @@ def test_chip_row_flows_and_minimum_is_the_widest_chip(app):
     assert strip.chip_rows() == [[n for n, _ in chips]]   # one row, in order
     row_sum = sum(c.sizeHint().width() for c in strip._chips.values())
     widest = max(c.sizeHint().width() for c in strip._chips.values())
-    assert strip.minimumSizeHint().width() <= widest + 12 < row_sum
+    assert strip.minimumSizeHint().width() <= widest + 16 < row_sum  # +4 label slack
     strip.resize(320, 60)
     strip._reflow()
     rows = strip.chip_rows()
