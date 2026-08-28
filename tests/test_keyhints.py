@@ -101,3 +101,23 @@ def test_overlay_sizes_to_rendered_content(app):
     html = overlay.view.toHtml()
     overlay.close()
     assert "hints" in html.lower()
+
+
+def test_overlay_header_carries_a_mouse_close(app):
+    """Mouse close affordance (walkthrough call-out 140a7b3c): the rendered
+    document opens with modal_header's title row — a close anchor at the
+    right — and the anchor route closes the overlay; pin anchors still
+    toggle. The same header + is_close_anchor pair serves every kit-painted
+    modal (finetune form, FormDialog shell)."""
+    from cjm_substrate_qt_kit.keyhints import is_close_anchor, modal_header
+    html = render_hints_html(ENTRIES, [], columns=1)
+    assert 'href="close:"' in html and html.index("close:") < html.index("<table cellspacing")
+    assert 'href="close:"' in modal_header("<b>FINETUNE</b>")
+    assert is_close_anchor(QUrl("close:")) and not is_close_anchor(QUrl("pin:x"))
+    owner = QWidget()
+    owner.resize(1000, 800)
+    overlay = KeyHintsOverlay(owner, ENTRIES)
+    overlay.open_overlay()
+    assert overlay.isVisible()
+    overlay._on_anchor(QUrl("close:"))
+    assert not overlay.isVisible()

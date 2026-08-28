@@ -60,3 +60,22 @@ def test_degenerate_span_sounds_nothing(qapp):
     p.play_span("/tmp/b.wav", 2.0, 2.0)          # degenerate inside the gap -> stop
     assert p._req is None and not p._req_timer.isActive() and not p._pending
     p.close()
+
+
+def test_output_follows_the_system_default_device(qapp):
+    """Device-follow (walkthrough call-out 76d404bc): Qt binds the default
+    sink at construction; the player listens to QMediaDevices and re-binds
+    to the CURRENT default when the device set changes. Offscreen there is
+    no device (a null QAudioDevice), so the contract checked here is the
+    wiring: the listener exists, the slot lands the default, and an
+    unchanged default is a no-op (no stream restart)."""
+    from PySide6.QtCore import QMetaMethod
+    from PySide6.QtMultimedia import QMediaDevices
+    p = SpanPlayer()
+    sig = QMetaMethod.fromSignal(p._devices.audioOutputsChanged)
+    assert p._devices.isSignalConnected(sig)
+    p._follow_default_output()
+    assert p._out.device() == QMediaDevices.defaultAudioOutput()
+    p._devices.audioOutputsChanged.emit()          # the live path, same slot
+    assert p._out.device() == QMediaDevices.defaultAudioOutput()
+    p.close()

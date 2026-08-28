@@ -103,10 +103,10 @@ def render_hints_html(entries: List[Entry], pins: List[str], columns: int,
                 % (dim, group, body))
         columns_html.append('<td style="vertical-align:top; '
                             'padding-right:26px;">%s</td>' % "".join(blocks))
-    return ('<h3>Keyboard hints</h3>'
-            '<table cellspacing="0" cellpadding="0"><tr>%s</tr></table>'
+    return (modal_header("Keyboard hints", t)
+            + '<table cellspacing="0" cellpadding="0"><tr>%s</tr></table>'
             '<p style="color:%s;">&#9679; pinned to the hint line &nbsp;·&nbsp; '
-            '? or Esc closes</p>'
+            '? or Esc or &#10005; closes</p>'
             % ("".join(columns_html), dim))
 
 
@@ -192,6 +192,9 @@ class KeyHintsOverlay(QDialog):
             self._render()
 
     def _on_anchor(self, url: QUrl) -> None:
+        if is_close_anchor(url):      # the header's mouse close (140a7b3c)
+            self.close()
+            return
         target = url.toString()
         if target.startswith("pin:"):
             self._toggle_pin(target[len("pin:"):])
@@ -209,3 +212,27 @@ def keycaps(key: str, theme: Optional[dict] = None) -> str:
     rich-text surfaces (e.g. a StatusStrip context row rendering pickable
     tokens as caps). Live theme by default."""
     return _keycaps(key, theme if theme is not None else current_theme())
+
+
+def modal_header(title_html: str, theme: Optional[dict] = None) -> str:
+    """A kit modal's title row: the title at left, the mouse CLOSE
+    affordance at right — an anchor carrying the close href, so every
+    QTextBrowser-painted modal (the ?-overlay, the finetune form, the
+    FormDialog shell) closes by click through the same anchorClicked route
+    as its other links (the dialog tests the url with is_close_anchor).
+    Walkthrough call-out 140a7b3c: frameless modals had keyboard-only
+    dismissal. `title_html` is a rich-text fragment — callers escape any
+    user-derived content themselves."""
+    t = theme if theme is not None else current_theme()
+    return ('<table width="100%%" cellspacing="0" cellpadding="0"><tr>'
+            '<td><h3 style="margin:0;">%s</h3></td>'
+            '<td align="right" style="vertical-align:top;">'
+            '<a href="close:" title="close" style="text-decoration:none; '
+            'color:%s;">&nbsp;&#10005;&nbsp;</a></td></tr></table>'
+            % (title_html, t["content-dim"]))
+
+
+def is_close_anchor(url: QUrl) -> bool:
+    """True for the close affordance modal_header paints — the dialog's
+    anchorClicked slot closes on it and routes everything else on."""
+    return url.toString() == "close:"

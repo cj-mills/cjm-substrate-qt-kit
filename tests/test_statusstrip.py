@@ -99,3 +99,88 @@ def test_readout_reflows_to_own_row_when_crowded(app):
     strip._reflow()
     assert strip._readout_inline          # space back: inline again
     assert not strip.readout.wordWrap()
+
+
+def test_labels_select_by_mouse_without_taking_focus(app):
+    """Selectable text (walkthrough call-out 04519af8): every strip label
+    selects by mouse drag so identifiers copy out of the footer — and none
+    of them takes keyboard focus (the flags alone would grant ClickFocus
+    and put a label between the owner window and its key table)."""
+    from PySide6.QtCore import QPoint, Qt
+    from PySide6.QtTest import QTest
+    strip = StatusStrip()
+    strip.resize(800, 60)
+    strip.set_chip("session", "session abcdef12")
+    strip.set_readout("■ played 7799.50–7802.67s")
+    strip.show()
+    chip = strip._chips["session"]
+    for label in (chip, strip.readout, strip.transient, strip.context,
+                  strip.hints):
+        assert label.textInteractionFlags() & Qt.TextSelectableByMouse
+        assert label.focusPolicy() == Qt.NoFocus
+    QTest.mousePress(chip, Qt.LeftButton, Qt.NoModifier, QPoint(1, 6))
+    QTest.mouseMove(chip, QPoint(chip.width() - 2, 6))
+    QTest.mouseRelease(chip, Qt.LeftButton, Qt.NoModifier,
+                       QPoint(chip.width() - 2, 6))
+    assert chip.hasSelectedText()
+    assert "session" in chip.selectedText()
+    strip.close()
+
+
+def test_long_plain_chip_elides_with_full_text_in_tooltip(app):
+    """Footer minimum-width, move (a) (call-out e26add76): a plain-text chip
+    wider than chip_max_width elides right, the full text rides the
+    tooltip + chip_text, a short chip is untouched, and a RICH-TEXT chip
+    (the apps' colored spans) is never cut."""
+    title = ("2026-05-23_How we're going to power the AI data center "
+             "buildout Energy Sec. Chris Wright & Scott Nolan")
+    strip = StatusStrip(chip_max_width=200)
+    strip.set_chip("source", title)
+    chip = strip._chips["source"]
+    assert chip.text() != title and chip.text().endswith("…")
+    assert chip.sizeHint().width() <= 200 + 4
+    assert chip.toolTip() == title
+    assert strip.chip_text("source") == title
+    strip.set_chip("source", "How I use LLMs")
+    assert chip.text() == "How I use LLMs" and chip.toolTip() == ""
+    rich = "<span style='color:#3f9d55'> journal→cjm-capability-graph-sqlite-with-a-very-long-name </span>"
+    strip.set_chip("journal", rich)
+    assert strip._chips["journal"].text() == rich
+    assert StatusStrip(chip_max_width=0)._elide(chip, title) == title
+
+
+def test_chip_row_flows_and_minimum_is_the_widest_chip(app):
+    """Footer minimum-width, move (b) (call-out e26add76): chips that no
+    longer fit the row flow onto rows underneath in declaration order and
+    return to one row when space allows; the strip's minimum width is its
+    widest chip, not the row's sum — so the window can narrow at all."""
+    strip = StatusStrip()
+    chips = [("lane", "[PROPOSE]"), ("source", "How I use LLMs"),
+             ("segment", "segment 4765/4806"),
+             ("proposals", "proposals 12 pending · tier2 40 hidden"),
+             ("set", "set 1a2b3c4d"), ("model", "model 9f8e7d6c")]
+    strip.resize(1400, 60)
+    strip.set_chips(chips)
+    assert strip.chip_rows() == [[n for n, _ in chips]]   # one row, in order
+    row_sum = sum(c.sizeHint().width() for c in strip._chips.values())
+    widest = max(c.sizeHint().width() for c in strip._chips.values())
+    assert strip.minimumSizeHint().width() <= widest + 12 < row_sum
+    strip.resize(320, 60)
+    strip._reflow()
+    rows = strip.chip_rows()
+    assert len(rows) > 1
+    assert [n for r in rows for n in r] == [n for n, _ in chips]   # order kept
+    avail = 320 - 12
+    for names in rows:
+        width = sum(strip._chips[n].sizeHint().width() for n in names)
+        width += 12 * (len(names) - 1)
+        assert width <= avail or len(names) == 1
+    extra = strip._chip_rows[1]
+    assert extra.count() == len(rows[1]) + 1        # chips + trailing stretch
+    assert extra.itemAt(extra.count() - 1).spacerItem() is not None
+    strip.remove_chip("proposals")
+    assert "proposals" not in [n for r in strip.chip_rows() for n in r]
+    strip.resize(1400, 60)
+    strip._reflow()
+    assert len(strip.chip_rows()) == 1
+    assert all(r.count() == 1 for r in strip._chip_rows[1:])   # stretch only

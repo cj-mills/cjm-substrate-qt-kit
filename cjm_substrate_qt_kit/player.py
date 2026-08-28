@@ -16,7 +16,7 @@ import time
 from typing import Optional, Tuple
 
 from PySide6.QtCore import QTimer, QUrl
-from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
+from PySide6.QtMultimedia import QAudioOutput, QMediaDevices, QMediaPlayer
 
 _READY = (QMediaPlayer.LoadedMedia, QMediaPlayer.BufferedMedia,
           QMediaPlayer.EndOfMedia)
@@ -41,6 +41,16 @@ class SpanPlayer:
         self._player = QMediaPlayer(parent)
         self._out = QAudioOutput(parent)
         self._player.setAudioOutput(self._out)
+        # Qt 6 binds the default output DEVICE at construction and never
+        # looks again: an app launched before the earbuds connect keeps
+        # sounding on the old sink until relaunch (walkthrough call-out
+        # 76d404bc). QMediaDevices is the only change signal — its
+        # audioOutputsChanged fires on every device add/remove (a default
+        # swap always rides one), so the output re-binds to the CURRENT
+        # system default there. This is dynamic FOLLOW of the system
+        # sink, not device SELECTION (the retired --audio-device, 128066f1).
+        self._devices = QMediaDevices(self._player)
+        self._devices.audioOutputsChanged.connect(self._follow_default_output)
         self._player.positionChanged.connect(self._check_end)
         self._player.mediaStatusChanged.connect(self._on_status)
         self._start_ms = 0
@@ -118,6 +128,15 @@ class SpanPlayer:
     def _check_end(self, pos: int) -> None:
         if self._end_ms is not None and pos >= self._end_ms:
             self.stop()
+
+    def _follow_default_output(self) -> None:
+        """Re-bind the sink to the system's current default output when the
+        device set changes (earbuds connected after launch). A no-op when
+        the default is unchanged, so a mid-span change of an unrelated
+        device never restarts the stream."""
+        default = QMediaDevices.defaultAudioOutput()
+        if self._out.device() != default:
+            self._out.setDevice(default)
 
     def stop(self) -> None:
         self._pending = False
