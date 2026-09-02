@@ -8,10 +8,15 @@ Shared foundations for the PySide6 application lane (DEC c4b0d6e5): LoopThreadSe
 
 - **`cjm_substrate_qt_kit.__init__`** — Shared foundations for the PySide6 application lane — extracted at first duplication (DEC dcf8a712).
 - **`cjm_substrate_qt_kit.findbar`** — The lane's find-bar universal (the Ctrl-F half of signal c7955f25).
+- **`cjm_substrate_qt_kit.formdialog`** — Kit FormShell (work item d55292f9): the frameless modal FORM chrome —
+- **`cjm_substrate_qt_kit.keyhints`** — Keyboard-hints surface: the ?-overlay + contextual hint line (DEC 2a42c028).
 - **`cjm_substrate_qt_kit.keymap`** — KeymapRegistry: the QAction layer from the toolbox verdict (DEC d55f1d0f).
 - **`cjm_substrate_qt_kit.keys`** — The keybinding helper both shells grew independently.
+- **`cjm_substrate_qt_kit.layout`** — Layout roles for the application lane — the FastHTML-era framework's Qt
 - **`cjm_substrate_qt_kit.loopthread`** — The loop-thread session base: a private asyncio loop behind a Qt shell.
+- **`cjm_substrate_qt_kit.pickerlist`** — Kit PickerList (work item 8d29f0f0): the native list PAGE the painted
 - **`cjm_substrate_qt_kit.player`** — Span playback via QMediaPlayer — the Qt lane's one audio component (kit
+- **`cjm_substrate_qt_kit.statusstrip`** — StatusStrip: the footer's slot model (DEC 2a42c028).
 - **`cjm_substrate_qt_kit.style`** — Row-style vocabulary for the lane's list widgets.
 - **`cjm_substrate_qt_kit.testbed`** — Readability test-bed: error-seeded reading trials measuring which theme
 - **`cjm_substrate_qt_kit.testbed_corpus`** — Bundled clean-prose corpus for the readability test-bed.
@@ -23,6 +28,21 @@ Shared foundations for the PySide6 application lane (DEC c4b0d6e5): LoopThreadSe
 
 - `FindBar` _class_ — Incremental find over an attached text pane. While the bar is open the
 
+### `cjm_substrate_qt_kit.formdialog`
+
+- `FormShell` _class_ — Frameless modal shell: head (QTextBrowser, fixed) / body (PickerList,
+
+### `cjm_substrate_qt_kit.keyhints`
+
+- `KeyHintsOverlay` _class_ — ?-toggled keyboard-hints overlay. Modal + frameless, centered over
+- `column_count` _function_ — Responsive column count: what the CONTAINER width affords (layout
+- `group_entries` _function_ — [{verb,label,key,group}] -> [(group, entries)] in first-seen group
+- `hint_line` _function_ — Project the pinned verbs (in pin order, capped at limit) into the
+- `is_close_anchor` _function_ — True for the close affordance modal_header paints — the dialog's
+- `keycaps` _function_ — Public key-cap renderer — the overlay's chip grammar for OTHER
+- `modal_header` _function_ — A kit modal's title row: the title at left, the mouse CLOSE
+- `render_hints_html` _function_ — The overlay's document: sections distributed across columns in
+
 ### `cjm_substrate_qt_kit.keymap`
 
 - `KeymapRegistry` _class_ — Declarative verb table -> live QActions on an owner widget.
@@ -31,13 +51,31 @@ Shared foundations for the PySide6 application lane (DEC c4b0d6e5): LoopThreadSe
 
 - `bind` _function_ — One QShortcut: `key` on `parent` (default: the owner window) fires `fn`.
 
+### `cjm_substrate_qt_kit.layout`
+
+- `afford` _function_ — R3 container affordance: how many fixed-width units fit in the
+- `classify` _function_ — One geometry -> its three role ids: {"mode", "shape", "height"}.
+- `height_tier` _function_ — Absolute height -> height-tier role id ("H1".."H4").
+- `mode` _function_ — Width -> mode role id ("M1".."M6").
+- `shape` _function_ — Aspect ratio -> shape role id ("S1".."S6").
+
 ### `cjm_substrate_qt_kit.loopthread`
 
 - `LoopThreadSession` _class_ — Owns one daemon asyncio loop thread; subclasses put their subsystem's
 
+### `cjm_substrate_qt_kit.pickerlist`
+
+- `PickerList` _class_ — The kit list page: native list above, budget-reserved detail below.
+- `SpanRowDelegate` _class_ — Paint one row's rich-text fragment (the _ROW_HTML data) through a
+- `spans_to_html` _function_ — Project style-worded spans into one QTextDocument-ready fragment.
+
 ### `cjm_substrate_qt_kit.player`
 
 - `SpanPlayer` _class_ — Play/stop one file span at a time; replay gestures re-enter, escape
+
+### `cjm_substrate_qt_kit.statusstrip`
+
+- `StatusStrip` _class_ — Two-row footer: chips + readout + transient above, hint line below
 
 ### `cjm_substrate_qt_kit.style`
 
