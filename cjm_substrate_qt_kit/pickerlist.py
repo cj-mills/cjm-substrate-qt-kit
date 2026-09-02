@@ -115,11 +115,13 @@ class PickerList(QWidget):
     def __init__(self, parent: Optional[QWidget] = None, *,
                  on_cursor: Optional[Callable[[int], None]] = None,
                  on_activate: Optional[Callable[[Any], None]] = None,
-                 detail_budget_rows: int = 6):
+                 detail_budget_rows: int = 6,
+                 detail_above: bool = False):   # detail pane ABOVE the list (glance-first)
         super().__init__(parent)
         self._on_cursor = on_cursor
         self._on_activate = on_activate
         self._detail_budget = max(1, int(detail_budget_rows))
+        self.detail_above = bool(detail_above)
         self._pickable: List[int] = []   # pickable index -> view row
         self._keys: List[Any] = []       # pickable index -> row key
         self._plain: List[str] = []      # every row's flat text (probe seam)
@@ -142,8 +144,14 @@ class PickerList(QWidget):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(2)
-        lay.addWidget(self.view, 1)
-        lay.addWidget(self.detail)
+        if self.detail_above:
+            # The focused row's detail sits ABOVE the listing (user ruling
+            # 2026-09-02: the "Why:" reasoning is what the eye checks first).
+            lay.addWidget(self.detail)
+            lay.addWidget(self.view, 1)
+        else:
+            lay.addWidget(self.view, 1)
+            lay.addWidget(self.detail)
         self.restyle()
 
     # ---- rows ------------------------------------------------------------

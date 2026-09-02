@@ -100,3 +100,19 @@ def test_panel_composes_the_three(app):
     assert panel.verdicts.plain_text() == "tier-1: accepted 1"
     assert panel.provenance.plain_text() == "actor: human"
     panel.restyle()
+
+
+def test_worklist_detail_sits_above_the_rows_by_default(app):
+    """User ruling 2026-09-02: the focused proposal's card (the 'Why:') is
+    what the eye checks first, so it sits ABOVE the listing; PickerList keeps
+    rows-first as its own default for the pickers."""
+    from cjm_substrate_qt_kit.hitl import ProposalWorklist
+    from cjm_substrate_qt_kit.pickerlist import PickerList
+    w = ProposalWorklist()
+    lay = w.picker.layout()
+    assert lay.itemAt(0).widget() is w.picker.detail
+    assert lay.itemAt(1).widget() is w.picker.view
+    p = PickerList()
+    assert p.layout().itemAt(0).widget() is p.view
+    w2 = ProposalWorklist(detail_above=False)
+    assert w2.picker.layout().itemAt(0).widget() is w2.picker.view

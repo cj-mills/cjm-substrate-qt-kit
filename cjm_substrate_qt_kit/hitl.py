@@ -85,11 +85,13 @@ class ProposalWorklist(QWidget):
     def __init__(self, parent: Optional[QWidget] = None, *,
                  on_cursor: Optional[Callable[[int], None]] = None,
                  on_activate: Optional[Callable[[Any], None]] = None,
-                 detail_budget_rows: int = 10):
+                 detail_budget_rows: int = 10,
+                 detail_above: bool = True):   # payload card ABOVE the rows (glance-first)
         super().__init__(parent)
         self._items: List[Item] = []
         self.picker = PickerList(self, on_cursor=on_cursor, on_activate=on_activate,
-                                 detail_budget_rows=detail_budget_rows)
+                                 detail_budget_rows=detail_budget_rows,
+                                 detail_above=detail_above)
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(0)
@@ -258,10 +260,12 @@ class HitlPanel(QWidget):
                  on_cursor: Optional[Callable[[int], None]] = None,
                  on_activate: Optional[Callable[[Any], None]] = None,
                  detail_budget_rows: int = 10,
-                 provenance_rows: int = 6):
+                 provenance_rows: int = 6,
+                 detail_above: bool = True):
         super().__init__(parent)
         self.worklist = ProposalWorklist(self, on_cursor=on_cursor, on_activate=on_activate,
-                                         detail_budget_rows=detail_budget_rows)
+                                         detail_budget_rows=detail_budget_rows,
+                                         detail_above=detail_above)
         self.verdicts = VerdictStrip(self)
         self.provenance = ProvenancePane(self, budget_rows=provenance_rows)
         lay = QVBoxLayout(self)
