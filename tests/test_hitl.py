@@ -116,3 +116,42 @@ def test_worklist_detail_sits_above_the_rows_by_default(app):
     assert p.layout().itemAt(0).widget() is p.view
     w2 = ProposalWorklist(detail_above=False)
     assert w2.picker.layout().itemAt(0).widget() is w2.picker.view
+
+
+def test_unchanged_items_do_not_rebuild_the_rows(app, monkeypatch):
+    """Per-frame lag on multi-hour spines (2026-09-02): a walk step re-sent
+    the same ~2800 items and the picker re-minted every Qt row. Unchanged
+    items + header only move the cursor."""
+    from cjm_substrate_qt_kit.hitl import ProposalWorklist
+    w = ProposalWorklist()
+    items = [{"key": f"p{i}", "tier": 1, "category": "inhale", "start": float(i), "end": i + 0.5,
+              "confidence": 0.9, "quote": f"q{i}", "index": i} for i in range(5)]
+    w.set_items(items, cursor=0, header="set x")
+    rebuilt = []
+    monkeypatch.setattr(w.picker, "set_rows", lambda rows, cursor=None: rebuilt.append(len(rows)))
+    w.set_items(list(items), cursor=3, header="set x")      # same content, new cursor
+    assert rebuilt == [] and w.cursor == 3
+    w.set_items(items[:4], cursor=1, header="set x")        # an accept removed a row
+    assert rebuilt == [5]                                    # header + 4 rows
+    w.set_items(items[:4], cursor=1, header="set y")        # header changed
+    assert rebuilt == [5, 5]
+
+
+def test_delegate_size_hint_is_memoized(app):
+    from PySide6.QtCore import QModelIndex
+    from PySide6.QtWidgets import QListWidget, QListWidgetItem, QStyleOptionViewItem
+    from cjm_substrate_qt_kit.pickerlist import SpanRowDelegate, _ROW_HTML
+    lst = QListWidget()
+    for i in range(3):
+        it = QListWidgetItem()
+        it.setData(_ROW_HTML, "<div style='white-space:pre'>row</div>" if i < 2 else "<div>other</div>")
+        lst.addItem(it)
+    d = SpanRowDelegate(lst)
+    opt = QStyleOptionViewItem()
+    opt.font = lst.font()
+    a = d.sizeHint(opt, lst.model().index(0, 0))
+    b = d.sizeHint(opt, lst.model().index(1, 0))
+    c = d.sizeHint(opt, lst.model().index(2, 0))
+    assert a == b and a.height() > 0
+    assert len(d._sizes) == 2          # two distinct fragments, one cache entry each
+    assert c.height() == a.height()

@@ -81,6 +81,16 @@ class SpanRowDelegate(QStyledItemDelegate):
     the span chips the picker rows carry. Selection paints the theme's
     raised ground behind the fragment (the cursor row's visual)."""
 
+    _SIZE_CACHE_MAX = 20000
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        # sizeHint is asked for EVERY row on a cursor move / scroll (Qt lays
+        # the whole list out), and a QTextDocument per ask cost ~0.2 s a
+        # frame on ~2800 rows (2026-09-02). The hint depends only on the
+        # fragment + font, so it is memoized per (html, font key).
+        self._sizes: Dict[Tuple[str, str], QSize] = {}
+
     def _doc(self, option, index) -> QTextDocument:
         doc = QTextDocument()
         doc.setDefaultFont(option.font)
@@ -98,8 +108,16 @@ class SpanRowDelegate(QStyledItemDelegate):
         painter.restore()
 
     def sizeHint(self, option, index) -> QSize:
-        doc = self._doc(option, index)
-        return QSize(int(doc.idealWidth()) + 4, int(doc.size().height()))
+        html = str(index.data(_ROW_HTML) or "")
+        key = (html, option.font.key())
+        size = self._sizes.get(key)
+        if size is None:
+            doc = self._doc(option, index)
+            size = QSize(int(doc.idealWidth()) + 4, int(doc.size().height()))
+            if len(self._sizes) >= self._SIZE_CACHE_MAX:
+                self._sizes.clear()
+            self._sizes[key] = size
+        return size
 
 
 class PickerList(QWidget):
@@ -176,6 +194,12 @@ class PickerList(QWidget):
             self.view.addItem(item)
         self._set_cursor(self._cursor if cursor is None else int(cursor),
                          notify=False)
+
+    def set_rows_cursor(self, cursor: int) -> None:
+        """Position the cursor the way set_rows() does — silently, no
+        on_cursor — without rebuilding the rows (the unchanged-listing
+        fast path a caller takes when only its cursor moved)."""
+        self._set_cursor(int(cursor), notify=False)
 
     @property
     def cursor(self) -> int:

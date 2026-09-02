@@ -89,6 +89,8 @@ class ProposalWorklist(QWidget):
                  detail_above: bool = True):   # payload card ABOVE the rows (glance-first)
         super().__init__(parent)
         self._items: List[Item] = []
+        self._header: Optional[str] = None
+        self._empty_note: Optional[str] = None
         self.picker = PickerList(self, on_cursor=on_cursor, on_activate=on_activate,
                                  detail_budget_rows=detail_budget_rows,
                                  detail_above=detail_above)
@@ -101,8 +103,19 @@ class ProposalWorklist(QWidget):
                   header: Optional[str] = None,
                   empty_note: str = "(no pending proposals)") -> None:
         """Rebuild the listing from items (an optional header row above; an
-        empty listing paints the note instead of nothing)."""
-        self._items = list(items)
+        empty listing paints the note instead of nothing). UNCHANGED items +
+        header only move the cursor: a rebuild re-mints every Qt row (0.3 s
+        for ~2800 rows — the per-frame lag on multi-hour spines, 2026-09-02),
+        and a walk step changes nothing but the cursor."""
+        items = list(items)
+        if (items == self._items and header == self._header
+                and self.picker.count() == len(items) and (items or self._empty_note == empty_note)):
+            if cursor is not None:
+                self.picker.set_rows_cursor(int(cursor))
+            return
+        self._items = items
+        self._header = header
+        self._empty_note = empty_note
         rows: List[Row] = []
         if header:
             rows.append({"kind": "header", "spans": [(header, "bold")]})
