@@ -9,6 +9,7 @@ Shared foundations for the PySide6 application lane (DEC c4b0d6e5): LoopThreadSe
 - **`cjm_substrate_qt_kit.__init__`** — Shared foundations for the PySide6 application lane — extracted at first duplication (DEC dcf8a712).
 - **`cjm_substrate_qt_kit.findbar`** — The lane's find-bar universal (the Ctrl-F half of signal c7955f25).
 - **`cjm_substrate_qt_kit.formdialog`** — Kit FormShell (work item d55292f9): the frameless modal FORM chrome —
+- **`cjm_substrate_qt_kit.hitl`** — Kit HITL confirm chrome (work item 55bcc3c5, the payload-agnostic half of
 - **`cjm_substrate_qt_kit.keyhints`** — Keyboard-hints surface: the ?-overlay + contextual hint line (DEC 2a42c028).
 - **`cjm_substrate_qt_kit.keymap`** — KeymapRegistry: the QAction layer from the toolbox verdict (DEC d55f1d0f).
 - **`cjm_substrate_qt_kit.keys`** — The keybinding helper both shells grew independently.
@@ -31,6 +32,15 @@ Shared foundations for the PySide6 application lane (DEC c4b0d6e5): LoopThreadSe
 ### `cjm_substrate_qt_kit.formdialog`
 
 - `FormShell` _class_ — Frameless modal shell: head (QTextBrowser, fixed) / body (PickerList,
+
+### `cjm_substrate_qt_kit.hitl`
+
+- `HitlPanel` _class_ — The composed confirm panel: worklist (stretch) over the verdict strip
+- `ProposalWorklist` _class_ — The proposal list page: items above (a kit PickerList), the host's
+- `ProvenancePane` _class_ — Key/value provenance — a two-column table of whatever the lane's
+- `VerdictStrip` _class_ — The derived-verdict status strip: one line per tier, each verdict
+- `fmt_ts` _function_ — Source-seconds as mm:ss.s — the worklist's span column.
+- `worklist_row` _function_ — Project one item into a picker row: tier glyph (? / ??), the category
 
 ### `cjm_substrate_qt_kit.keyhints`
 

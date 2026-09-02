@@ -1,156 +1,313 @@
-"""Span playback via QMediaPlayer — the Qt lane's one audio component (kit
-extraction 26dd7b85 at the N=3 mark: decomp-qt original, correction-qt carried
-copy per warts 1052ce38, transcription-qt SegmentPlayer sibling reconciled
-onto the same class). Plays one file span at a time — a model-input WAV slice,
-a source-coordinate span of original media, or a whole file (end_s=None, the
-former SegmentPlayer's p-verb shape) — at the bracket ladder's 0.5–3.0× speed.
-The FFmpeg backend's setPlaybackRate is pitch-preserving (leg-3 field
-ratification), so the speed ladder's behavior carries everywhere.
+"""Span playback over ONE persistent audio stream — the Qt lane's one audio
+component (kit extraction 26dd7b85; this cut replaces the QMediaPlayer engine,
+finding 2cc66110).
 
-Mechanics: seeks land only once media is loaded, so play_span defers the
-setPosition+play to mediaStatusChanged when the source is fresh (an already-
-loaded source replays immediately); positionChanged stops at the span end
-(backend-granular — a sub-100ms overshoot, inaudible at these spans)."""
+WHY ONE STREAM: every QMediaPlayer play start rebuilt its FFmpeg pipeline INTO
+the sink — a PipeWire stream start per play — and stream starts on a bluetooth
+node are the device-wide distortion hazard (17c09ebf, 0cfc3173, then the
+churn-free recurrence 2cc66110). The 0.25s start-gap guard only spaced the
+starts out and cost every replay a delay. Here the stream starts ONCE: a
+`QAudioSink` in pull mode reads forever from `_Feeder`, which hands it the
+current clip's PCM or silence. Play is a clip swap (the Textual ChunkPlayer's
+shape, 7d7e37af-era, kept inside Qt's device model so default-output FOLLOW
+survives: a default-device change is the only stream rebuild).
 
-import time
-from typing import Optional, Tuple
+DECODE is outside the sink: one `ffmpeg` subprocess per play — fast seek to
+the span, `atempo` for the pitch-preserving 0.5–3.0× ladder, f32le stereo at
+48 kHz streamed in blocks — so a span deep in a multi-hour source sounds on
+its first block, not after a full decode. Any container ffmpeg reads works
+(model-input WAV slices and the original media alike). A new request kills
+the previous decoder and swaps the clip; `stop` swaps to silence. There is no
+rate limit and no coalescing: restarting a segment is immediate.
 
-from PySide6.QtCore import QTimer, QUrl
-from PySide6.QtMultimedia import QAudioOutput, QMediaDevices, QMediaPlayer
+Surface (unchanged for the three consumers): play_span / play / stop / close /
+playing / error_text."""
 
-_READY = (QMediaPlayer.LoadedMedia, QMediaPlayer.BufferedMedia,
-          QMediaPlayer.EndOfMedia)
+import collections
+import shutil
+import subprocess
+import threading
+from typing import Deque, List, Optional
 
-# Minimum seconds between actual play STARTS (drive-1 field find, held-r
-# variant; the 039c9a62 wedge class): every QMediaPlayer stop()->play() tears
-# down and recreates the sink stream — same source or not — and a key-repeat
-# storm of restarts wedges the PipeWire node DEVICE-WIDE until it reconnects.
-# Requests inside the gap coalesce (latest wins, audio stops at once) and
-# play when the burst settles, so a held replay goes quiet and sounds once
-# on release.
-_MIN_START_GAP_S = 0.25
+from PySide6.QtCore import QIODevice
+from PySide6.QtMultimedia import QAudioFormat, QAudioSink, QMediaDevices
+
+SAMPLE_RATE = 48000
+CHANNELS = 2
+BYTES_PER_FRAME = 4 * CHANNELS            # f32le stereo
+# Decoder read granularity (~85 ms) and the sink's buffer (~85 ms): small
+# enough that a swap sounds at once, large enough that the pull timer never
+# starves under normal scheduling. Field-tunable.
+BLOCK_BYTES = 4096 * BYTES_PER_FRAME
+SINK_BUFFER_BYTES = 4096 * BYTES_PER_FRAME
+_STDERR_TAIL = 400
+
+
+def decode_command(path: str, start_s: float, end_s: Optional[float],
+                   rate: float = 1.0, ffmpeg: str = "ffmpeg") -> List[str]:
+    """The ffmpeg invocation for one span: input-side seek (fast), `-t` bounds
+    the span (end_s=None = natural end), atempo carries the speed ladder
+    (pitch-preserving; ffmpeg accepts 0.5–100 per stage), f32le stereo 48 kHz
+    on stdout. Pure — the unit-testable half of the decode path."""
+    cmd = [ffmpeg, "-v", "error", "-nostdin", "-ss", f"{max(0.0, start_s):.3f}"]
+    if end_s is not None:
+        cmd += ["-t", f"{max(0.0, end_s - start_s):.3f}"]
+    cmd += ["-i", path]
+    rate = float(rate)
+    if rate != 1.0:
+        cmd += ["-af", f"atempo={max(0.5, min(100.0, rate)):g}"]
+    cmd += ["-f", "f32le", "-ac", str(CHANNELS), "-ar", str(SAMPLE_RATE), "-"]
+    return cmd
+
+
+class _Clip:
+    """One decode in flight: the block queue the feeder drains, the decoder's
+    liveness, and its failure text. Decoder thread appends; the GUI thread
+    (pull-timer readData) pops — deque ops are atomic under the GIL."""
+
+    def __init__(self) -> None:
+        self.blocks: Deque[bytes] = collections.deque()
+        self.done = False           # decoder finished (or was cancelled)
+        self.cancelled = False
+        self.error: Optional[str] = None
+        self.proc: Optional[subprocess.Popen] = None
+        self.started = threading.Event()   # first block landed (or done)
+
+    @property
+    def draining(self) -> bool:
+        return bool(self.blocks) or not self.done
+
+
+def _run_decoder(clip: _Clip, cmd: List[str]) -> None:
+    """Decoder thread body: stream ffmpeg's stdout into the clip in blocks."""
+    try:
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    except OSError as e:
+        clip.error = f"decoder failed to start: {e}"
+        clip.done = True
+        clip.started.set()
+        return
+    clip.proc = proc
+    if clip.cancelled:            # cancelled before the process existed
+        proc.kill()
+    try:
+        assert proc.stdout is not None
+        while True:
+            block = proc.stdout.read(BLOCK_BYTES)
+            if not block:
+                break
+            if clip.cancelled:
+                break
+            clip.blocks.append(block)
+            clip.started.set()
+        err = b""
+        if proc.stderr is not None:
+            err = proc.stderr.read()
+        rc = proc.wait()
+        if rc != 0 and not clip.cancelled:
+            tail = err.decode("utf-8", "replace").strip()[-_STDERR_TAIL:]
+            clip.error = f"decode error (ffmpeg rc={rc}): {tail or 'no detail'}"
+    finally:
+        clip.done = True
+        clip.started.set()
+
+
+class _Feeder(QIODevice):
+    """The sink's pull source: the current clip's PCM, else silence. Never
+    returns short — a continuous stream is the whole point (a short read
+    would drop the sink to Idle). A clip decoding slower than playback pads
+    silence too (a beat of quiet, not a stream state change)."""
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        self._clip: Optional[_Clip] = None
+        self._carry = b""           # unread remainder of the last popped block
+        self.reads = 0              # pull count (diagnostics/tests)
+
+    def set_clip(self, clip: Optional[_Clip]) -> None:
+        self._clip = clip
+        self._carry = b""
+
+    @property
+    def clip(self) -> Optional[_Clip]:
+        return self._clip
+
+    def isSequential(self) -> bool:
+        return True
+
+    def bytesAvailable(self) -> int:
+        return BLOCK_BYTES + super().bytesAvailable()
+
+    def readData(self, maxlen: int) -> bytes:
+        self.reads += 1
+        want = int(maxlen)
+        out: List[bytes] = []
+        have = 0
+        clip = self._clip
+        if clip is not None:
+            if self._carry:
+                take = self._carry[:want]
+                self._carry = self._carry[want:]
+                out.append(take)
+                have = len(take)
+            while have < want and clip.blocks:
+                block = clip.blocks.popleft()
+                room = want - have
+                if len(block) > room:
+                    out.append(block[:room])
+                    self._carry = block[room:]
+                    have = want
+                else:
+                    out.append(block)
+                    have += len(block)
+        if have < want:
+            out.append(bytes(want - have))      # silence
+        return b"".join(out)
+
+    def writeData(self, data) -> int:  # pull-only device
+        return -1
 
 
 class SpanPlayer:
-    """Play/stop one file span at a time; replay gestures re-enter, escape
-    stops. Play starts are rate-limited at this choke point — EVERY caller
-    (replay, autoplay, auditions, gesture replays, whole-file toggles) rides
-    the same guard."""
+    """Play/stop one file span at a time over the persistent stream; replay
+    gestures re-enter immediately, escape stops. Every caller (replay,
+    autoplay, auditions, gesture replays, whole-file toggles) is a clip swap."""
 
-    def __init__(self, parent=None):
-        self._player = QMediaPlayer(parent)
-        self._out = QAudioOutput(parent)
-        self._player.setAudioOutput(self._out)
-        # Qt 6 binds the default output DEVICE at construction and never
-        # looks again: an app launched before the earbuds connect keeps
-        # sounding on the old sink until relaunch (walkthrough call-out
-        # 76d404bc). QMediaDevices is the only change signal — its
-        # audioOutputsChanged fires on every device add/remove (a default
-        # swap always rides one), so the output re-binds to the CURRENT
-        # system default there. This is dynamic FOLLOW of the system
-        # sink, not device SELECTION (the retired --audio-device, 128066f1).
-        self._devices = QMediaDevices(self._player)
+    def __init__(self, parent=None, bind: bool = True,
+                 ffmpeg: Optional[str] = None) -> None:
+        self._ffmpeg = ffmpeg or shutil.which("ffmpeg")
+        self._fmt = QAudioFormat()
+        self._fmt.setSampleRate(SAMPLE_RATE)
+        self._fmt.setChannelCount(CHANNELS)
+        self._fmt.setSampleFormat(QAudioFormat.Float)
+        self._feeder = _Feeder()
+        self._feeder.open(QIODevice.ReadOnly)
+        self._sink: Optional[QAudioSink] = None
+        self._device = None
+        self._clip: Optional[_Clip] = None
+        self._thread: Optional[threading.Thread] = None
+        self._sink_error: Optional[str] = None
+        # Qt binds an output DEVICE at sink construction and never looks
+        # again; QMediaDevices.audioOutputsChanged fires on every device
+        # add/remove (a default swap rides one), so the sink re-binds to the
+        # CURRENT system default there — dynamic FOLLOW, not selection
+        # (76d404bc; the retired --audio-device, 128066f1).
+        self._devices = QMediaDevices(parent)
         self._devices.audioOutputsChanged.connect(self._follow_default_output)
-        self._player.positionChanged.connect(self._check_end)
-        self._player.mediaStatusChanged.connect(self._on_status)
-        self._start_ms = 0
-        self._end_ms: Optional[int] = None
-        self._pending = False
-        self._last_start = 0.0
-        self._req: Optional[Tuple[str, float, Optional[float], float]] = None
-        self._req_timer = QTimer(self._player)
-        self._req_timer.setSingleShot(True)
-        self._req_timer.timeout.connect(self._flush_req)
+        self._bind_enabled = bind
+        if bind:
+            self._bind(QMediaDevices.defaultAudioOutput())
+
+    # ---- stream -----------------------------------------------------------
+
+    def _bind(self, device) -> None:
+        """Start the ONE stream on `device` (the only place a stream starts)."""
+        self._unbind()
+        self._device = device
+        if device is None or device.isNull():
+            self._sink_error = "no audio output device"
+            return
+        fmt = self._fmt
+        if not device.isFormatSupported(fmt):
+            fmt = device.preferredFormat()
+        sink = QAudioSink(device, fmt)
+        sink.setBufferSize(SINK_BUFFER_BYTES)
+        sink.start(self._feeder)
+        self._sink = sink
+        self._sink_error = None
+
+    def _unbind(self) -> None:
+        if self._sink is not None:
+            self._sink.stop()
+            self._sink = None
+
+    def _follow_default_output(self) -> None:
+        """Re-bind to the system's current default output when the device set
+        changes (earbuds connected after launch). A no-op when the default is
+        unchanged, so a change of an unrelated device never restarts the
+        stream."""
+        if not self._bind_enabled:
+            return
+        default = QMediaDevices.defaultAudioOutput()
+        if self._device is None or self._device != default:
+            self._bind(default)
+
+    @property
+    def stream_active(self) -> bool:
+        return self._sink is not None
+
+    # ---- clips --------------------------------------------------------------
 
     @property
     def playing(self) -> bool:
-        return self._player.playbackState() == QMediaPlayer.PlayingState
+        clip = self._clip
+        return clip is not None and clip.draining
 
     def play_span(self, path: str, start_s: float, end_s: Optional[float],
                   rate: float = 1.0) -> None:
         """Request `path` at start_s, stopping at end_s (file-local seconds —
         source-coordinate seconds ARE file-local on the original media;
-        end_s=None plays to the file's natural end).
-
-        An idle request starts immediately; inside the start gap it coalesces
-        (see _MIN_START_GAP_S). Stop-then-play always: stale audio under a
-        fresh focus would mismatch the card on screen."""
-        if end_s is not None and int(end_s * 1000) <= max(0, int(start_s * 1000)):
-            # Degenerate span at the player's ms resolution (a chunk nudged
-            # down to nothing, e.g. the partial-word case): sound NOTHING.
-            # Handed to QMediaPlayer, a start==end window never trips the
-            # stop-at-end check cleanly and the file runs on to its natural
-            # end — the whole aseg WAV (zero-span replay finding, 2026-08-26).
-            # Stop-then-return keeps the stale-audio rule for every caller.
+        end_s=None plays to the file's natural end). Immediate: the previous
+        decoder dies, the feeder swaps to the new clip, and audio sounds on
+        the clip's first block."""
+        if end_s is not None and end_s - start_s <= 0.001:
+            # Degenerate span (a chunk nudged down to nothing, e.g. the
+            # partial-word case; zero-span replay finding 2026-08-26): sound
+            # NOTHING — stop-then-return keeps the stale-audio rule.
             self.stop()
             return
-        if time.monotonic() - self._last_start < _MIN_START_GAP_S:
-            self._req = (path, start_s, end_s, rate)
-            self._player.stop()
-            self._req_timer.start(int(_MIN_START_GAP_S * 1000))
+        self._cancel_clip()
+        clip = _Clip()
+        if not self._ffmpeg:
+            clip.error = "ffmpeg not found on PATH — playback unavailable"
+            clip.done = True
+            clip.started.set()
+            self._clip = clip
             return
-        self._start_span(path, start_s, end_s, rate)
+        cmd = decode_command(path, start_s, end_s, rate, ffmpeg=self._ffmpeg)
+        self._clip = clip
+        self._feeder.set_clip(clip)
+        self._thread = threading.Thread(target=_run_decoder, args=(clip, cmd),
+                                        name="span-decoder", daemon=True)
+        self._thread.start()
 
     def play(self, path: str, rate: float = 1.0) -> None:
         """Whole-file convenience (the former SegmentPlayer surface): play
-        `path` from the top to its natural end, through the same guard."""
+        `path` from the top to its natural end."""
         self.play_span(path, 0.0, None, rate)
 
-    def _flush_req(self) -> None:
-        if self._req is not None:
-            req, self._req = self._req, None
-            self._start_span(*req)
-
-    def _start_span(self, path: str, start_s: float, end_s: Optional[float],
-                    rate: float) -> None:
-        self._last_start = time.monotonic()
-        self._player.stop()
-        self._start_ms = max(0, int(start_s * 1000))
-        self._end_ms = None if end_s is None else int(end_s * 1000)
-        self._player.setPlaybackRate(max(0.1, float(rate)))
-        url = QUrl.fromLocalFile(path)
-        if (self._player.source() == url
-                and self._player.mediaStatus() in _READY):
-            self._begin()
-        else:
-            self._pending = True
-            self._player.setSource(url)
-
-    def _on_status(self, status) -> None:
-        if self._pending and status in _READY:
-            self._pending = False
-            self._begin()
-
-    def _begin(self) -> None:
-        self._player.setPosition(self._start_ms)
-        self._player.play()
-
-    def _check_end(self, pos: int) -> None:
-        if self._end_ms is not None and pos >= self._end_ms:
-            self.stop()
-
-    def _follow_default_output(self) -> None:
-        """Re-bind the sink to the system's current default output when the
-        device set changes (earbuds connected after launch). A no-op when
-        the default is unchanged, so a mid-span change of an unrelated
-        device never restarts the stream."""
-        default = QMediaDevices.defaultAudioOutput()
-        if self._out.device() != default:
-            self._out.setDevice(default)
+    def _cancel_clip(self) -> None:
+        clip = self._clip
+        if clip is None:
+            return
+        clip.cancelled = True
+        proc = clip.proc
+        if proc is not None and proc.poll() is None:
+            try:
+                proc.kill()
+            except OSError:
+                pass
+        clip.blocks.clear()
 
     def stop(self) -> None:
-        self._pending = False
-        self._req = None            # an explicit stop cancels a coalesced request
-        self._req_timer.stop()
-        self._end_ms = None
-        self._player.stop()
+        """Silence at once (navigation left the segment, escape, close)."""
+        self._feeder.set_clip(None)
+        self._cancel_clip()
+        self._clip = None
 
     def close(self) -> None:
         self.stop()
-        self._player.setSource(QUrl())
+        self._unbind()
+        self._feeder.close()
 
     def error_text(self) -> Optional[str]:
-        """The player's last error string, or None (surfaced in-status)."""
-        if self._player.error() == QMediaPlayer.NoError:
-            return None
-        return self._player.errorString() or "playback error"
+        """The current clip's decode failure or the sink's binding failure,
+        else None (surfaced in-status by the shells)."""
+        clip = self._clip
+        if clip is not None and clip.error:
+            return clip.error
+        if self._sink_error and self._bind_enabled:
+            return self._sink_error
+        if self._sink is not None and getattr(self._sink.error(), "value", 0) != 0:
+            return f"audio sink error: {self._sink.error()}"      # QtAudio.NoError == 0
+        return None
