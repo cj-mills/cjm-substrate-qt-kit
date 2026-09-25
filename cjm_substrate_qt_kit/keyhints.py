@@ -151,22 +151,14 @@ class KeyHintsOverlay(QDialog):
         empty (drive verdict 2026-08-25) — center over the owner, and show
         modally (QDialog.open — non-blocking, but the owner's shortcuts stay
         inert underneath)."""
-        owner = self.parentWidget()
-        avail_w = (owner.width() - 64) if owner is not None else 1000
-        avail_h = (owner.height() - 64) if owner is not None else 640
+        avail_w, avail_h = modal_bounds(self)
         self._render()
         doc = self.view.document()
         doc.setTextWidth(-1)
         width = min(avail_w, int(doc.idealWidth()) + 44)
         doc.setTextWidth(width - 30)
         height = min(avail_h, int(doc.size().height()) + 32)
-        self.resize(width, height)
-        if owner is not None:
-            center = owner.mapToGlobal(owner.rect().center())
-            self.move(center.x() - self.width() // 2,
-                      center.y() - self.height() // 2)
-        self.open()
-        self.view.setFocus()
+        open_centered(self, width, height, focus=self.view)
 
     def _render(self) -> None:
         owner = self.parentWidget()
@@ -236,3 +228,33 @@ def is_close_anchor(url: QUrl) -> bool:
     """True for the close affordance modal_header paints — the dialog's
     anchorClicked slot closes on it and routes everything else on."""
     return url.toString() == "close:"
+
+
+def modal_bounds(dialog: QWidget) -> Tuple[int, int]:
+    """(avail_w, avail_h) a kit modal may occupy: the owner's size less a
+    64 px margin on each axis, or a 960x640 fallback when ownerless (tests,
+    detached probes). Callers size their content against these bounds and
+    hand the result to open_centered, which caps again by the same rule."""
+    owner = dialog.parentWidget()
+    if owner is None:
+        return 960, 640
+    return owner.width() - 64, owner.height() - 64
+
+
+def open_centered(dialog: QDialog, width: int, height: int,
+                  focus: Optional[QWidget] = None) -> None:
+    """Open a kit modal centered over its owner at (width, height) capped by
+    modal_bounds — the ONE sizing/centering path; the ?-overlay and the
+    FormShell carried it separately until the kit charter's housekeeping
+    (ruling 8b7351e4). QDialog.open is non-blocking, but the owner's
+    shortcuts stay inert underneath; `focus` (default: the dialog itself)
+    takes the keyboard."""
+    avail_w, avail_h = modal_bounds(dialog)
+    dialog.resize(min(avail_w, width), min(avail_h, height))
+    owner = dialog.parentWidget()
+    if owner is not None:
+        center = owner.mapToGlobal(owner.rect().center())
+        dialog.move(center.x() - dialog.width() // 2,
+                    center.y() - dialog.height() // 2)
+    dialog.open()
+    (focus if focus is not None else dialog).setFocus()

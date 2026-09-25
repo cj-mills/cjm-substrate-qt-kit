@@ -2,23 +2,14 @@
 generation, apply_theme landing palette + stylesheet + fonts, and
 apply_row_style resolving through the live theme."""
 
-import os
-
-os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-
 import json
 
 import pytest
 from PySide6.QtGui import QColor, QPalette, QTextBlockFormat
-from PySide6.QtWidgets import QApplication, QListWidgetItem, QTextEdit
+from PySide6.QtWidgets import QListWidgetItem, QTextEdit
 
 from cjm_substrate_qt_kit import theme as th
 from cjm_substrate_qt_kit.style import apply_row_style
-
-
-@pytest.fixture(scope="module")
-def app():
-    return QApplication.instance() or QApplication([])
 
 
 def test_resolve_theme_merges_overrides_per_token():

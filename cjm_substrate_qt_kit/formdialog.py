@@ -24,7 +24,7 @@ from typing import Any, Callable, Optional
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QDialog, QLabel, QLineEdit, QTextBrowser, QVBoxLayout
 
-from .keyhints import is_close_anchor, modal_header
+from .keyhints import is_close_anchor, modal_bounds, modal_header, open_centered
 from .pickerlist import PickerList
 from .theme import current_theme
 
@@ -115,9 +115,7 @@ class FormShell(QDialog):
         """Size to the rendered content — head document + body rows +
         detail + foot — capped by the owner, then open centered with the
         dialog holding focus (the subclass owns the keys)."""
-        owner = self.parentWidget()
-        avail_w = (owner.width() - 64) if owner is not None else 960
-        avail_h = (owner.height() - 64) if owner is not None else 640
+        avail_w, avail_h = modal_bounds(self)
         width = min(avail_w,
                     max(self.body.view.sizeHintForColumn(0) + 48, min_width))
         doc = self.head.document()
@@ -130,10 +128,4 @@ class FormShell(QDialog):
                     if self.body.detail.isVisibleTo(self.body) else 0)
         foot_h = self.foot.sizeHint().height()
         height = min(avail_h, head_h + rows_h + detail_h + foot_h + 30)
-        self.resize(width, height)
-        if owner is not None:
-            center = owner.mapToGlobal(owner.rect().center())
-            self.move(center.x() - self.width() // 2,
-                      center.y() - self.height() // 2)
-        self.open()
-        self.setFocus()
+        open_centered(self, width, height)

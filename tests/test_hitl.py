@@ -4,21 +4,9 @@ rows with the host-owned cursor, the payload slot repaints alone, the
 verdict strip paints only non-empty tiers by role, and the provenance pane
 renders escaped key/value pairs."""
 
-import os
-
-os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-
-import pytest
-from PySide6.QtWidgets import QApplication
-
 from cjm_substrate_qt_kit.hitl import (fmt_ts, HitlPanel, ProposalWorklist, ProvenancePane,
                                        VerdictStrip, worklist_row)
 from cjm_substrate_qt_kit.theme import current_theme, state_color
-
-
-@pytest.fixture(scope="module")
-def app():
-    return QApplication.instance() or QApplication([])
 
 
 def items():

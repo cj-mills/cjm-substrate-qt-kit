@@ -2,11 +2,12 @@
 
 <!-- generated from the context graph by `cjm-context-graph readme` — do not edit by hand; edit the graph (the urge to hand-edit = move it on-graph) -->
 
-Shared foundations for the PySide6 application lane (DEC c4b0d6e5): LoopThreadSession (a private asyncio loop behind a Qt shell — GraphSession and CapabilitySession both subclass it), the row-style palette (STYLE_COLORS/apply_row_style), and the keybinding helper. Every piece extracted at its first real duplication between cjm-graph-workbench-qt and cjm-transcription-qt — the kit grows by demand, never speculation. Semantic theming (a94fa56a) and in-app config (812beb51) land here at their demand points.
+The ONE Qt foundation library for the cjm-substrate application lane (ruling 8b7351e4), in three strata: (a) the design-system runtime — semantic theme tokens as data -> QPalette + QSS + fonts; (b) the app shell (ruling 2bae2cc1, landing); (c) the chrome every app shares — the loop-thread session base, KeymapRegistry, key hints + the modal grammar, the status strip, find bar, picker list, form shell + the manifest-driven config-form model, the HITL panel, the span player (requires ffmpeg on PATH), and text clamps. Born at first duplication between the workbench and the transcription shell (DEC dcf8a712); grown by demand, never speculation. The Textual-era tui-kit's live pieces (ConfigForm, tail) ported here 2026-09-25 and the tui-kit archived — nothing Textual remains on any app's import path.
 
 ## Modules
 
-- **`cjm_substrate_qt_kit.__init__`** — Shared foundations for the PySide6 application lane — extracted at first duplication (DEC dcf8a712).
+- **`cjm_substrate_qt_kit.__init__`** — The ONE Qt foundation library for the cjm-substrate application lane (ruling 8b7351e4).
+- **`cjm_substrate_qt_kit.configform`** — Manifest-driven config form MODEL — the schema half of every kit form.
 - **`cjm_substrate_qt_kit.findbar`** — The lane's find-bar universal (the Ctrl-F half of signal c7955f25).
 - **`cjm_substrate_qt_kit.formdialog`** — Kit FormShell (work item d55292f9): the frameless modal FORM chrome —
 - **`cjm_substrate_qt_kit.hitl`** — Kit HITL confirm chrome (work item 55bcc3c5, the payload-agnostic half of
@@ -16,14 +17,20 @@ Shared foundations for the PySide6 application lane (DEC c4b0d6e5): LoopThreadSe
 - **`cjm_substrate_qt_kit.layout`** — Layout roles for the application lane — the FastHTML-era framework's Qt
 - **`cjm_substrate_qt_kit.loopthread`** — The loop-thread session base: a private asyncio loop behind a Qt shell.
 - **`cjm_substrate_qt_kit.pickerlist`** — Kit PickerList (work item 8d29f0f0): the native list PAGE the painted
-- **`cjm_substrate_qt_kit.player`** — Span playback via QMediaPlayer — the Qt lane's one audio component (kit
+- **`cjm_substrate_qt_kit.player`** — Span playback over ONE persistent audio stream — the Qt lane's one audio
 - **`cjm_substrate_qt_kit.statusstrip`** — StatusStrip: the footer's slot model (DEC 2a42c028).
 - **`cjm_substrate_qt_kit.style`** — Row-style vocabulary for the lane's list widgets.
 - **`cjm_substrate_qt_kit.testbed`** — Readability test-bed: error-seeded reading trials measuring which theme
 - **`cjm_substrate_qt_kit.testbed_corpus`** — Bundled clean-prose corpus for the readability test-bed.
+- **`cjm_substrate_qt_kit.text`** — Text clamps for one-line surfaces — path-like strings keep their END.
 - **`cjm_substrate_qt_kit.theme`** — Semantic theme tokens for the lane: one flat dict -> QPalette + QSS + fonts.
 
 ## API
+
+### `cjm_substrate_qt_kit.configform`
+
+- `ConfigField` _class_ — One schema property as an editable form row.
+- `ConfigForm` _class_ — A capability's editable config, derived from its manifest config_schema.
 
 ### `cjm_substrate_qt_kit.findbar`
 
@@ -50,7 +57,9 @@ Shared foundations for the PySide6 application lane (DEC c4b0d6e5): LoopThreadSe
 - `hint_line` _function_ — Project the pinned verbs (in pin order, capped at limit) into the
 - `is_close_anchor` _function_ — True for the close affordance modal_header paints — the dialog's
 - `keycaps` _function_ — Public key-cap renderer — the overlay's chip grammar for OTHER
+- `modal_bounds` _function_ — (avail_w, avail_h) a kit modal may occupy: the owner's size less a
 - `modal_header` _function_ — A kit modal's title row: the title at left, the mouse CLOSE
+- `open_centered` _function_ — Open a kit modal centered over its owner at (width, height) capped by
 - `render_hints_html` _function_ — The overlay's document: sections distributed across columns in
 
 ### `cjm_substrate_qt_kit.keymap`
@@ -81,7 +90,8 @@ Shared foundations for the PySide6 application lane (DEC c4b0d6e5): LoopThreadSe
 
 ### `cjm_substrate_qt_kit.player`
 
-- `SpanPlayer` _class_ — Play/stop one file span at a time; replay gestures re-enter, escape
+- `SpanPlayer` _class_ — Play/stop one file span at a time over the persistent stream; replay
+- `decode_command` _function_ — The ffmpeg invocation for one span: input-side seek (fast), `-t` bounds
 
 ### `cjm_substrate_qt_kit.statusstrip`
 
@@ -101,6 +111,10 @@ Shared foundations for the PySide6 application lane (DEC c4b0d6e5): LoopThreadSe
 - `main` _function_ — CLI: run trials over a markdown file, or summarize result JSONLs.
 - `seed_error` _function_ — Apply one error class to a token list; (mutated_words, target_token,
 - `summarize` _function_ — Catch rate + latency per dimension marginal, per variant cell, per
+
+### `cjm_substrate_qt_kit.text`
+
+- `tail` _function_ — Clamp a string to width keeping its END.
 
 ### `cjm_substrate_qt_kit.theme`
 

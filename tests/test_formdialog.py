@@ -4,20 +4,9 @@ the footer holds whatever the subclass paints there, the esc ladder closes
 an open editor before the dialog, and open_sized sizes to the rendered
 rows capped by the owner."""
 
-import os
-
-os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-
-import pytest
 from PySide6.QtCore import QUrl
-from PySide6.QtWidgets import QApplication
 
 from cjm_substrate_qt_kit.formdialog import FormShell
-
-
-@pytest.fixture(scope="module")
-def app():
-    return QApplication.instance() or QApplication([])
 
 
 def rows():

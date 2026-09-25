@@ -1,20 +1,10 @@
 """KeymapRegistry contract: labelled live QActions, declaration-order
 discovery surface, runtime rebind."""
 
-import os
-
-os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-
-import pytest
 from PySide6.QtGui import QKeySequence
 from PySide6.QtWidgets import QApplication, QLineEdit, QMainWindow
 
 from cjm_substrate_qt_kit.keymap import KeymapRegistry
-
-
-@pytest.fixture(scope="module")
-def app():
-    return QApplication.instance() or QApplication([])
 
 
 def test_add_mints_live_labelled_action(app):

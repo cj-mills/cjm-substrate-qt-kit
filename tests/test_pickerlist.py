@@ -4,20 +4,8 @@ click-to-cursor lands only on item rows (a header click restores the
 selection), double-click activates through the cursor, set_rows positions
 silently, and the detail pane hides when empty and caps at its budget."""
 
-import os
-
-os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-
-import pytest
-from PySide6.QtWidgets import QApplication
-
 from cjm_substrate_qt_kit.pickerlist import PickerList, spans_to_html
 from cjm_substrate_qt_kit.theme import current_theme, state_color
-
-
-@pytest.fixture(scope="module")
-def app():
-    return QApplication.instance() or QApplication([])
 
 
 def rows():

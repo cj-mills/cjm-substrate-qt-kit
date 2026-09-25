@@ -1,13 +1,8 @@
 """Keyhints contract: grouped model, responsive columns, pin round-trip,
 hint-line projection, registry group flow-through."""
 
-import os
-
-os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-
-import pytest
 from PySide6.QtCore import QUrl
-from PySide6.QtWidgets import QApplication, QWidget
+from PySide6.QtWidgets import QWidget
 
 from cjm_substrate_qt_kit.keyhints import (KeyHintsOverlay, column_count,
                                            group_entries, hint_line,
@@ -20,11 +15,6 @@ ENTRIES = [
     {"verb": "audio.replay", "label": "replay", "key": "R", "group": "Audio"},
     {"verb": "app.quit", "label": "quit", "key": "Q", "group": ""},
 ]
-
-
-@pytest.fixture(scope="module")
-def app():
-    return QApplication.instance() or QApplication([])
 
 
 def test_group_entries_first_seen_order_and_general_default():

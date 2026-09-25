@@ -7,23 +7,15 @@ feeder, offscreen and silent."""
 import math
 import shutil
 import struct
-import sys
 import time
 import wave
 
 import pytest
-from PySide6.QtWidgets import QApplication
 
 from cjm_substrate_qt_kit.player import (BYTES_PER_FRAME, CHANNELS, SAMPLE_RATE,
                                           SpanPlayer, _Clip, _Feeder, decode_command)
 
 HAVE_FFMPEG = shutil.which("ffmpeg") is not None
-
-
-@pytest.fixture(scope="module")
-def qapp():
-    app = QApplication.instance() or QApplication(sys.argv[:1])
-    yield app
 
 
 @pytest.fixture
@@ -70,13 +62,13 @@ def test_decode_command_rate_and_open_end():
 
 # ---- feeder ------------------------------------------------------------------
 
-def test_feeder_is_silence_without_a_clip(qapp):
+def test_feeder_is_silence_without_a_clip(app):
     f = _Feeder()
     assert f.isSequential()
     assert f.readData(64) == bytes(64)
 
 
-def test_feeder_drains_blocks_in_order_then_pads_silence(qapp):
+def test_feeder_drains_blocks_in_order_then_pads_silence(app):
     f = _Feeder()
     clip = _Clip()
     clip.blocks.extend([b"\x01" * 10, b"\x02" * 10])
@@ -89,7 +81,7 @@ def test_feeder_drains_blocks_in_order_then_pads_silence(qapp):
     assert not clip.draining
 
 
-def test_feeder_swap_drops_the_old_carry(qapp):
+def test_feeder_swap_drops_the_old_carry(app):
     f = _Feeder()
     a, b = _Clip(), _Clip()
     a.blocks.append(b"\x01" * 10)
@@ -102,7 +94,7 @@ def test_feeder_swap_drops_the_old_carry(qapp):
 
 # ---- player bookkeeping (no sink) ---------------------------------------------
 
-def test_degenerate_span_sounds_nothing(qapp):
+def test_degenerate_span_sounds_nothing(app):
     """Zero-span replay finding (2026-08-26): a start==end request must
     never reach a decoder — stop-then-return keeps the stale-audio rule."""
     p = SpanPlayer(bind=False, ffmpeg="ffmpeg")
@@ -111,7 +103,7 @@ def test_degenerate_span_sounds_nothing(qapp):
     p.close()
 
 
-def test_missing_ffmpeg_surfaces_an_error_not_a_crash(qapp):
+def test_missing_ffmpeg_surfaces_an_error_not_a_crash(app):
     p = SpanPlayer(bind=False, ffmpeg=None)
     p._ffmpeg = None
     p.play_span("/tmp/a.wav", 0.0, 1.0)
@@ -121,7 +113,7 @@ def test_missing_ffmpeg_surfaces_an_error_not_a_crash(qapp):
 
 
 @pytest.mark.skipif(not HAVE_FFMPEG, reason="ffmpeg not on PATH")
-def test_play_span_decodes_into_the_feeder(qapp, tone_wav):
+def test_play_span_decodes_into_the_feeder(app, tone_wav):
     p = SpanPlayer(bind=False)
     p.play_span(tone_wav, 0.5, 1.0)                          # 0.5 s of tone
     clip = p._clip
@@ -138,7 +130,7 @@ def test_play_span_decodes_into_the_feeder(qapp, tone_wav):
 
 
 @pytest.mark.skipif(not HAVE_FFMPEG, reason="ffmpeg not on PATH")
-def test_restart_is_immediate_and_cancels_the_previous_decoder(qapp, tone_wav):
+def test_restart_is_immediate_and_cancels_the_previous_decoder(app, tone_wav):
     p = SpanPlayer(bind=False)
     p.play_span(tone_wav, 0.0, None, rate=0.5)               # long: 4 s of output
     first = p._clip
@@ -153,7 +145,7 @@ def test_restart_is_immediate_and_cancels_the_previous_decoder(qapp, tone_wav):
 
 
 @pytest.mark.skipif(not HAVE_FFMPEG, reason="ffmpeg not on PATH")
-def test_stop_silences_and_kills_the_decoder(qapp, tone_wav):
+def test_stop_silences_and_kills_the_decoder(app, tone_wav):
     p = SpanPlayer(bind=False)
     p.play_span(tone_wav, 0.0, None, rate=0.5)
     clip = p._clip
@@ -166,7 +158,7 @@ def test_stop_silences_and_kills_the_decoder(qapp, tone_wav):
 
 
 @pytest.mark.skipif(not HAVE_FFMPEG, reason="ffmpeg not on PATH")
-def test_decode_failure_is_reported(qapp, tmp_path):
+def test_decode_failure_is_reported(app, tmp_path):
     p = SpanPlayer(bind=False)
     p.play_span(str(tmp_path / "missing.wav"), 0.0, 1.0)
     clip = p._clip
@@ -175,7 +167,7 @@ def test_decode_failure_is_reported(qapp, tmp_path):
     p.close()
 
 
-def test_output_follows_the_system_default_device(qapp):
+def test_output_follows_the_system_default_device(app):
     """Device-follow (walkthrough call-out 76d404bc): the sink is bound at
     construction; QMediaDevices.audioOutputsChanged re-binds to the CURRENT
     default. With bind=False the listener is wired but the slot is a no-op —

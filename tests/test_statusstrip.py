@@ -2,19 +2,7 @@
 chips never evicted, readout persists until superseded, transient expires
 on its own timer — and the hint line rides row two."""
 
-import os
-
-os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-
-import pytest
-from PySide6.QtWidgets import QApplication
-
 from cjm_substrate_qt_kit.statusstrip import StatusStrip
-
-
-@pytest.fixture(scope="module")
-def app():
-    return QApplication.instance() or QApplication([])
 
 
 def test_chips_create_update_remove_keep_order(app):

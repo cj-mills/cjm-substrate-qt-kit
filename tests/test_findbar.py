@@ -1,21 +1,11 @@
 """FindBar contract: incremental search from the opening origin, wrap-around
 stepping in both directions, match paint + counter, close returns focus."""
 
-import os
-
-os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-
-import pytest
-from PySide6.QtWidgets import QApplication, QPlainTextEdit
+from PySide6.QtWidgets import QPlainTextEdit
 
 from cjm_substrate_qt_kit.findbar import FindBar
 
 TEXT = "alpha beta\ngamma beta\ndelta beta end"
-
-
-@pytest.fixture(scope="module")
-def app():
-    return QApplication.instance() or QApplication([])
 
 
 def make(app):

@@ -3,26 +3,14 @@ deterministic and mark the right token, trial plans cover the variant grid
 evenly, click token-indexing is exact, and a trial response lands a JSONL
 row with hit scoring."""
 
-import os
-
-os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-
 import json
 import random
-
-import pytest
-from PySide6.QtWidgets import QApplication
 
 from cjm_substrate_qt_kit import testbed as tb
 
 PROSE = ("This paragraph carries more than twenty words of ordinary prose so "
          "that the loader will keep it around for trials and seeding checks "
          "without complaint from the filter.")
-
-
-@pytest.fixture(scope="module")
-def app():
-    return QApplication.instance() or QApplication([])
 
 
 def test_load_paragraphs_keeps_fence_content(tmp_path):
