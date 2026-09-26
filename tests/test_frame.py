@@ -26,7 +26,11 @@ def test_client_decorations_are_the_default_and_frameless(app):
     assert win.windowFlags() & Qt.WindowType.FramelessWindowHint
     assert win.testAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
     assert win.titlebar.isVisibleTo(win)
-    assert win.contentsMargins().left() == GRIP
+    # the frame fills the window geometry (no transparent margin — a tiled
+    # window showed it as a gap); the grip is the frame's own band
+    assert win.contentsMargins().left() == 0
+    assert win.frame.band == GRIP + 1
+    assert win.frame.layout().contentsMargins().left() == GRIP + 1
     assert win.frame.property("kitFrame") is True
     win.setWindowTitle("the workbench")
     assert win.titlebar.title.text() == "the workbench"
@@ -38,7 +42,7 @@ def test_env_and_prefs_pick_the_fallback(app, monkeypatch):
     assert (win.decorations, win.decorations_source) == ("system", "env")
     assert not (win.windowFlags() & Qt.WindowType.FramelessWindowHint)
     assert not win.titlebar.isVisibleTo(win)
-    assert win.contentsMargins().left() == 0
+    assert win.frame.band == 0 and win.frame.layout().contentsMargins().left() == 0
     assert win.frame.property("chrome") == "system"
     monkeypatch.delenv(prefs.DECORATIONS_ENV)
     monkeypatch.setenv(prefs.DECORATIONS_ENV, "nonsense")   # a typo never crashes a launch
@@ -72,12 +76,12 @@ def test_maximized_drops_grip_border_and_swaps_the_verb(app):
     assert win.isMaximized()
     assert win.frame.property("kitMaximized") is True
     assert win.titlebar.property("kitMaximized") is True
-    assert win.contentsMargins().left() == 0
+    assert win.frame.band == 0                             # no border, no padding, no grip
     assert win.titlebar.maximize_btn.toolTip() == "Restore"
     assert edge_value(win.edges_at(QPoint(1, 1))) == 0     # no grip while maximized
     win.titlebar.toggle_maximize()
     app.processEvents()
-    assert not win.isMaximized() and win.contentsMargins().left() == GRIP
+    assert not win.isMaximized() and win.frame.band == GRIP + 1
     assert win.titlebar.maximize_btn.toolTip() == "Maximize"
     win.close()
 
@@ -85,6 +89,9 @@ def test_maximized_drops_grip_border_and_swaps_the_verb(app):
 def test_grip_edges_and_cursor_map(app):
     win = FramedWindow()
     win.resize(400, 300)
+    win.show()                       # the frame takes the geometry on layout
+    app.processEvents()
+    assert win.frame.width() == 400 and win.frame.height() == 300
     assert win.edges_at(QPoint(1, 1)) == (Qt.Edge.TopEdge | Qt.Edge.LeftEdge)
     assert win.edges_at(QPoint(399, 150)) == Qt.Edge.RightEdge
     assert win.edges_at(QPoint(200, 299)) == Qt.Edge.BottomEdge
@@ -107,23 +114,24 @@ def test_title_bar_verbs_and_slots(app):
 
 
 def test_frame_paints_transparent_corners_and_its_own_border(app):
-    """The DoD probe: alpha 0 outside the frame, the frame's border on its
-    own edge (the grip margin in), the tokens' background inside."""
+    """The DoD probe: the frame fills the window — its border on the window's
+    own edge, the tokens' background inside, only the corners beyond the
+    radius transparent (a tiled window sits flush)."""
     t = apply_theme(app, "classical", "light")
     win = FramedWindow()
     win.resize(400, 300)
     win.show()
     app.processEvents()
     img = win.grab().toImage()
-    assert img.pixelColor(0, 0).alpha() == 0
-    assert img.pixelColor(GRIP - 1, 150).alpha() == 0
-    edge = img.pixelColor(GRIP, 150)
+    assert img.pixelColor(0, 0).alpha() == 0            # beyond the radius
+    assert img.pixelColor(1, 1).alpha() == 0
+    edge = img.pixelColor(0, 150)
+    band = img.pixelColor(3, 150)
     inside = img.pixelColor(GRIP + 40, 150)
-    assert edge.alpha() == 255 and inside.alpha() == 255
-    assert inside.name() == t.vars["bg"]
+    assert edge.alpha() == 255 and band.alpha() == 255 and inside.alpha() == 255
+    assert band.name() == t.vars["bg"] and inside.name() == t.vars["bg"]
     assert edge.name() != t.vars["bg"]           # the border, not the background
-    # the corner beyond the radius is transparent too
-    assert img.pixelColor(GRIP, GRIP).alpha() == 0
+    assert img.pixelColor(200, 0).alpha() == 255  # the top edge is painted, edge to edge
     win.close()
 
 
