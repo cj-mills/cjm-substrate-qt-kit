@@ -226,5 +226,5 @@ The ONE Qt foundation library for the cjm-substrate application lane (ruling 8b7
 
 ## Dependencies
 
-**Depends on:** `PySide6`
+**Depends on:** `PySide6`, `cjm-harness-transcripts`
 **Used by:** `cjm-graph-workbench-qt`, `cjm-session-scratchpad-qt`, `cjm-transcript-correction-qt`, `cjm-transcript-decomp-qt`, `cjm-transcription-qt`, `cjm-workflow-hub-qt`
