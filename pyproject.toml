@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "cjm-substrate-qt-kit"
 dynamic = ["version"]
-description = "The ONE Qt foundation library for the cjm-substrate application lane (ruling 8b7351e4): the design-system runtime (semantic theme tokens -> QPalette + QSS + fonts), the app shell, and the chrome every app shares — loop-thread session base, KeymapRegistry, key hints, status strip, find bar, picker list, form shell + config-form model, HITL panel, span player, text clamps. Requires ffmpeg on PATH for span playback. Born on-graph."
+description = "The ONE Qt foundation library for the cjm-substrate application lane (ruling 8b7351e4): the design-system runtime (a design system as data — token schema v1, Classical + Netrunner vendored — resolved by ONE Theme into fonts + QPalette + QSS + Lucide icons with ONE change signal), the app shell, and the chrome every app shares — loop-thread session base, KeymapRegistry, key hints, status strip, find bar, picker list, form shell + config-form model, HITL panel, span player, text clamps. Requires ffmpeg on PATH for span playback. Born on-graph."
 readme = "README.md"
 requires-python = ">=3.12"
 license = {text = "Apache-2.0"}
@@ -21,3 +21,8 @@ version = {attr = "cjm_substrate_qt_kit.__version__"}
 
 [tool.setuptools.packages.find]
 include = ["cjm_substrate_qt_kit*"]
+
+[tool.setuptools.package-data]
+cjm_substrate_qt_kit = ["qss/*.qss", "icons/*.svg", "icons/LICENSE",
+                        "systems/*/tokens.json", "systems/*/qss/*.qss",
+                        "systems/*/fonts/*.ttf", "systems/*/fonts/*.otf", "systems/*/fonts/OFL.txt"]

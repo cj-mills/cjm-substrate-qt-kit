@@ -16,7 +16,7 @@ fire underneath it."""
 from typing import Callable, Dict, List, Optional, Tuple
 
 from cjm_substrate_qt_kit.layout import afford
-from cjm_substrate_qt_kit.theme import current_theme
+from cjm_substrate_qt_kit.theme import current_theme, on_change
 from PySide6.QtCore import Qt, QUrl
 from PySide6.QtWidgets import QDialog, QTextBrowser, QVBoxLayout, QWidget
 
@@ -59,11 +59,11 @@ def _keycaps(key: str, theme: dict) -> str:
     """Render a key sequence as key-cap chips ("Ctrl+Shift+K" -> three
     caps joined by +). Qt rich text styles spans with background only, so
     caps read as chips via background + padding NBSPs."""
-    cap = ('<span style="background-color:{raised}; color:{content}; '
+    cap = ('<span style="background-color:{bg}; color:{fg}; '
            'font-family:monospace;">&nbsp;{tok}&nbsp;</span>')
-    toks = [cap.format(raised=theme["raised"], content=theme["content"], tok=t)
+    toks = [cap.format(bg=theme["tag_neutral_bg"], fg=theme["tag_neutral_fg"], tok=t)
             for t in str(key).split("+")]
-    return ('<span style="color:%s;">+</span>' % theme["content-dim"]).join(toks)
+    return ('<span style="color:%s;">+</span>' % theme["dim"]).join(toks)
 
 
 def render_hints_html(entries: List[Entry], pins: List[str], columns: int,
@@ -83,7 +83,7 @@ def render_hints_html(entries: List[Entry], pins: List[str], columns: int,
             index += 1
         per_col[index].append(section)
         filled += len(section[1])
-    dim, border = t["content-dim"], t["border"]
+    dim = t["dim"]
     columns_html = []
     for col in per_col:
         blocks = []
@@ -131,6 +131,13 @@ class KeyHintsOverlay(QDialog):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(1, 1, 1, 1)
         layout.addWidget(self.view)
+        on_change(self._on_theme)
+
+    def _on_theme(self, _theme) -> None:
+        """A visible overlay re-renders under the new theme (colors are baked
+        into its document)."""
+        if self.isVisible():
+            self._render()
 
     def set_entries(self, entries: List[Entry]) -> None:
         """Swap the hint model (lane changes re-point the overlay); a
@@ -165,9 +172,7 @@ class KeyHintsOverlay(QDialog):
         avail = (owner.width() - 64) if owner is not None else self.width()
         cols = column_count(avail, len(group_entries(self._entries)))
         theme = current_theme()
-        self.view.setStyleSheet(
-            "QTextBrowser { background: %s; border: 1px solid %s; "
-            "padding: 12px; }" % (theme["surface"], theme["border"]))
+        self.view.document().setDocumentMargin(12.0)
         self.view.setHtml(render_hints_html(self._entries, self.pins, cols,
                                             theme))
 
@@ -221,7 +226,7 @@ def modal_header(title_html: str, theme: Optional[dict] = None) -> str:
             '<td align="right" style="vertical-align:top;">'
             '<a href="close:" title="close" style="text-decoration:none; '
             'color:%s;">&nbsp;&#10005;&nbsp;</a></td></tr></table>'
-            % (title_html, t["content-dim"]))
+            % (title_html, t["dim"]))
 
 
 def is_close_anchor(url: QUrl) -> bool:

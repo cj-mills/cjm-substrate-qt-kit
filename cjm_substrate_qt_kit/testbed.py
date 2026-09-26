@@ -28,7 +28,7 @@ from pathlib import Path
 from typing import Optional
 
 from cjm_substrate_qt_kit.testbed_corpus import PARAGRAPHS
-from cjm_substrate_qt_kit.theme import apply_theme, load_theme, style_text_pane
+from cjm_substrate_qt_kit.theme import apply_theme, current_theme, style_text_pane
 from PySide6.QtCore import QPointF, Qt, QTimer, Signal
 from PySide6.QtGui import QMouseEvent
 from PySide6.QtWidgets import QApplication, QLabel, QTextEdit, QVBoxLayout, QWidget
@@ -44,12 +44,14 @@ CONFUSABLES = {"their": "there", "there": "their", "then": "than",
                "and": "an", "an": "and", "been": "being", "being": "been",
                "affect": "effect", "effect": "affect", "lose": "loose"}
 
-# The first crossed grid (pass-3 DEC f2d83ddf): scheme x body size x
-# line-height, measure held at the default; family/measure are follow-up
-# sweeps. Dimensions provisional until live-run evidence.
+# The first crossed grid (pass-3 DEC f2d83ddf): mode x body size x
+# line-height over one design system, measure held at the system's default;
+# family / system sweeps are follow-ups. Sizes are PIXELS (token schema v1).
+# Dimensions provisional until live-run evidence.
 CLASSES = ("transpose", "double", "drop", "swap", "punct")
-SCHEMES = ("light", "dark")
-SIZES = (11.0, 12.0, 13.0)
+SYSTEM = "classical"
+MODES = ("light", "dark")
+SIZES = (14.0, 15.0, 16.0)
 LINE_HEIGHTS = (1.3, 1.45, 1.6)
 
 
@@ -260,9 +262,9 @@ class TrialWindow(QWidget):
             "Click the word that reads wrong, or press C if the paragraph is "
             "clean. Timing starts the moment a paragraph appears.\n\n"
             "Press Enter to start.")
-        theme = apply_theme(QApplication.instance())
+        apply_theme(QApplication.instance())
         self.pane.setPlainText(intro)
-        style_text_pane(self.pane, theme)
+        style_text_pane(self.pane, current_theme())
         self.status.setText("%d trials queued — press Enter to start"
                             % len(self.trials))
 
@@ -273,11 +275,17 @@ class TrialWindow(QWidget):
             return
         trial = self.trials[self.index]
         variant = trial["variant"]
-        overrides = {k: v for k, v in variant.items()
-                     if k not in ("scheme", "theme")}
-        theme = apply_theme(QApplication.instance(), overrides, variant["scheme"])
+        # The system + mode land on the application (one Theme, re-targeted);
+        # the typography dimensions ride a per-trial copy of the resolved
+        # vars into style_text_pane — the pane, not the app, is the subject.
+        theme = apply_theme(QApplication.instance(), variant.get("system", SYSTEM),
+                            variant.get("mode"))
+        vars_ = dict(theme.vars)
+        for key in ("fs_body", "line_height", "font_body"):
+            if key in variant:
+                vars_[key] = str(variant[key])
         self.pane.setPlainText(trial["text"])
-        style_text_pane(self.pane, theme)
+        style_text_pane(self.pane, vars_)
         self.status.setText("%d/%d — click the word that reads wrong, or press "
                             "C if the paragraph is clean"
                             % (self.index + 1, len(self.trials)))
@@ -349,22 +357,19 @@ def summarize(paths: list) -> None:
                   % (key, len(hits), len(g), 100.0 * len(hits) / len(g),
                      ms, note))
 
-    report(rows, lambda r: r["variant"]["scheme"], "scheme")
-    report(rows, lambda r: r["variant"]["font-body-size"], "body size")
-    report(rows, lambda r: r["variant"]["font-body-line-height"], "line-height")
-    if any("font-body-family" in r["variant"] for r in rows):
-        report(rows, lambda r: r["variant"].get("font-body-family") or "(system)",
+    report(rows, lambda r: r["variant"].get("system", SYSTEM), "system")
+    report(rows, lambda r: r["variant"]["mode"], "mode")
+    report(rows, lambda r: r["variant"]["fs_body"], "body size (px)")
+    report(rows, lambda r: r["variant"]["line_height"], "line-height")
+    if any("font_body" in r["variant"] for r in rows):
+        report(rows, lambda r: r["variant"].get("font_body") or "(system)",
                "family")
-    if any("theme" in r["variant"] for r in rows):
-        report(rows, lambda r: r["variant"].get("theme", "(default)"), "theme")
 
     def cell(r):
         v = r["variant"]
-        key = [v["scheme"], v["font-body-size"], v["font-body-line-height"]]
-        if "font-body-family" in v:
-            key.append(v["font-body-family"] or "(system)")
-        if "theme" in v:
-            key.append(v["theme"])
+        key = [v.get("system", SYSTEM), v["mode"], v["fs_body"], v["line_height"]]
+        if "font_body" in v:
+            key.append(v["font_body"] or "(system)")
         return tuple(key)
 
     report(rows, cell, "variant")
@@ -390,18 +395,18 @@ def main(argv: Optional[list] = None) -> int:
     parser.add_argument("--out", default="", help="results JSONL (appended)")
     parser.add_argument("--summarize", nargs="+", metavar="JSONL",
                         help="skip the UI; report over these result files")
-    parser.add_argument("--schemes", default="",
-                        help="sweep: comma-separated from light,dark")
+    parser.add_argument("--systems", default="",
+                        help="sweep: comma-separated design systems (vendored "
+                             "slugs or tokens.json paths); default classical")
+    parser.add_argument("--modes", default="",
+                        help="sweep: comma-separated modes of the system(s)")
     parser.add_argument("--sizes", default="",
-                        help="sweep: comma-separated body point sizes")
+                        help="sweep: comma-separated body pixel sizes")
     parser.add_argument("--line-heights", default="",
                         help="sweep: comma-separated line-height ratios")
     parser.add_argument("--families", default="",
                         help="sweep: comma-separated font families; the "
-                             "literal word system means the system default")
-    parser.add_argument("--themes", default="",
-                        help="sweep: comma-separated theme JSON files "
-                             "(palette candidates race like typography)")
+                             "literal word system means the platform default")
     args = parser.parse_args(argv)
     if args.summarize:
         summarize(args.summarize)
@@ -419,19 +424,15 @@ def main(argv: Optional[list] = None) -> int:
         return items or None
 
     variants = None
-    if any((args.schemes, args.sizes, args.line_heights, args.families,
-            args.themes)):
+    if any((args.systems, args.modes, args.sizes, args.line_heights,
+            args.families)):
         families = parse_list(args.families)
         if families:
             families = ["" if f.lower() == "system" else f for f in families]
-        themes = None
-        if args.themes:
-            themes = [(Path(p).stem, load_theme(p))
-                      for p in parse_list(args.themes)]
-        variants = build_variants(parse_list(args.schemes),
+        variants = build_variants(parse_list(args.modes),
                                   parse_list(args.sizes),
                                   parse_list(args.line_heights),
-                                  families, themes)
+                                  families, parse_list(args.systems))
     trials = build_trials(paragraphs, rng, args.trials, variants=variants)
     out = args.out or time.strftime("readability-trials-%Y%m%d-%H%M%S.jsonl")
     app = QApplication.instance() or QApplication([])
@@ -446,26 +447,24 @@ def main(argv: Optional[list] = None) -> int:
     return 0
 
 
-def build_variants(schemes=None, sizes=None, line_heights=None,
-                   families=None, themes=None) -> list:
+def build_variants(modes=None, sizes=None, line_heights=None,
+                   families=None, systems=None) -> list:
     """Cross the sweep dimensions into variant dicts. Defaults reproduce the
-    first grid (scheme x size x line-height). families adds font-body-family
-    values ("" = system default); themes adds (name, overrides) pairs read
-    from theme JSON files — their tokens merge into the variant and the name
-    lands under the "theme" label key, so palette candidates race exactly
-    like typography values."""
-    dims = [("scheme", list(schemes or SCHEMES)),
-            ("font-body-size", [float(s) for s in (sizes or SIZES)]),
-            ("font-body-line-height",
-             [float(h) for h in (line_heights or LINE_HEIGHTS)])]
+    first grid (mode x size x line-height over Classical). families adds
+    font_body values ("" = platform default); systems adds design systems,
+    so palette candidates race exactly like typography values. Keys are the
+    resolved-vocabulary names (fs_body, line_height, font_body) so a variant
+    overlays the theme's vars directly."""
+    dims = [("mode", list(modes or MODES)),
+            ("fs_body", [float(s) for s in (sizes or SIZES)]),
+            ("line_height", [float(h) for h in (line_heights or LINE_HEIGHTS)])]
     if families:
-        dims.append(("font-body-family", list(families)))
+        dims.append(("font_body", list(families)))
+    if systems:
+        dims.insert(0, ("system", list(systems)))
     variants = [{}]
     for key, values in dims:
         variants = [dict(v, **{key: val}) for v in variants for val in values]
-    if themes:
-        variants = [dict(v, **overrides, theme=name)
-                    for v in variants for name, overrides in themes]
     return variants
 
 

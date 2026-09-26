@@ -71,18 +71,15 @@ def test_build_trials_covers_grid_evenly():
 
 def test_build_variants_sweeps(tmp_path):
     assert len(tb.build_variants()) == 18  # default grid unchanged
-    focused = tb.build_variants(schemes=["dark"], sizes=[13],
+    focused = tb.build_variants(modes=["dark"], sizes=[13],
                                 line_heights=[1.3, 1.45],
                                 families=["", "Noto Sans"])
     assert len(focused) == 4
-    assert {v["font-body-family"] for v in focused} == {"", "Noto Sans"}
-    theme_file = tmp_path / "warm.json"
-    theme_file.write_text(json.dumps({"content": "#111111"}))
-    themed = tb.build_variants(schemes=["dark"], sizes=[13], line_heights=[1.3],
-                               themes=[("warm", json.loads(theme_file.read_text()))])
-    assert themed == [{"scheme": "dark", "font-body-size": 13.0,
-                       "font-body-line-height": 1.3, "content": "#111111",
-                       "theme": "warm"}]
+    assert {v["font_body"] for v in focused} == {"", "Noto Sans"}
+    themed = tb.build_variants(modes=["red"], sizes=[13], line_heights=[1.3],
+                               systems=["netrunner"])
+    assert themed == [{"system": "netrunner", "mode": "red", "fs_body": 13.0,
+                       "line_height": 1.3}]
     trials = tb.build_trials([PROSE], random.Random(0), 8, variants=focused)
     counts = {}
     for t in trials:
@@ -137,8 +134,8 @@ def test_trial_window_records_scored_rows(app, tmp_path):
 
 def test_summarize_reports_position_thirds(tmp_path, capsys):
     out = tmp_path / "rows.jsonl"
-    base = {"variant": {"scheme": "dark", "font-body-size": 12.0,
-                        "font-body-line-height": 1.45},
+    base = {"variant": {"mode": "dark", "fs_body": 15.0,
+                        "line_height": 1.45},
             "cls": "drop", "hit": True, "ms": 1000}
     rows = [dict(base, target=1, n_tokens=30),
             dict(base, target=15, n_tokens=30),

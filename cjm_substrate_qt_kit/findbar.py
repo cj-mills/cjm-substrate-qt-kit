@@ -16,7 +16,8 @@ KeymapRegistry verbs; the bar owns only its in-field keys."""
 
 from typing import List, Optional
 
-from cjm_substrate_qt_kit.theme import current_theme
+import shiboken6
+from cjm_substrate_qt_kit.theme import current_theme, on_change
 from PySide6.QtCore import QRegularExpression, Qt
 from PySide6.QtGui import QColor, QTextCursor, QTextDocument
 from PySide6.QtWidgets import (QApplication, QHBoxLayout, QLabel, QLineEdit, QTextEdit, QToolButton,
@@ -54,7 +55,7 @@ class FindBar(QWidget):
         self.word_btn = option("W", "Whole word")
         self.regex_btn = option(".*", "Regular expression")
         self.count = QLabel("", self)
-        self.count.setProperty("role", "content-dim")
+        self.count.setProperty("role", "dim")
         prev_btn = QToolButton(self)
         prev_btn.setText("↑")
         prev_btn.clicked.connect(self.previous)
@@ -75,6 +76,16 @@ class FindBar(QWidget):
         layout.addWidget(next_btn)
         layout.addWidget(close_btn)
         self.hide()
+        on_change(self._on_theme)
+
+    def _on_theme(self, _theme) -> None:
+        """Repaint the match selections under the new theme while open. A
+        pane whose C++ half is gone (a closed reading view) is dropped, not
+        searched."""
+        if self.pane is not None and not shiboken6.isValid(self.pane):
+            self.pane = None
+        if self.isVisible() and self.pane is not None and self.field.text():
+            self._step(backward=False, stay_on_origin=True)
 
     def attach(self, pane) -> None:
         """Point the bar at a (possibly different) pane; clears old paint."""
@@ -236,7 +247,7 @@ class FindBar(QWidget):
             extra.cursor = QTextCursor(cursor)
             if cursor.selectionStart() == current:
                 extra.format.setBackground(focus)
-                extra.format.setForeground(QColor(theme["accent-content"]))
+                extra.format.setForeground(QColor(theme["bg"]))
             else:
                 extra.format.setBackground(wash)
             selections.append(extra)

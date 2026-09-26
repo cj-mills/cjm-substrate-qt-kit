@@ -1,8 +1,9 @@
 """Row-style vocabulary for the lane's list widgets.
 
-Spine row dicts carry Rich-ish style words ("green", "dim", "bold", …); the
+Spine row dicts carry style words — state roles ("ok", "dim", "bold", …) or,
+until the spines migrate (06d729ab), the legacy Rich words ("green"); the
 shells map them onto QListWidgetItems. Colors resolve through the live theme
-(word -> semantic role -> token; see theme.WORD_ROLES) — the pre-theme
+(word -> state role -> var; see theme.state_color) — the pre-theme
 STYLE_COLORS hex map retired with the kit charter (ruling 8b7351e4)."""
 
 from typing import Optional

@@ -1,0 +1,107 @@
+/* Classical for Qt Widgets. Rendered by qtds: dollar holes come from tokens.resolve(). */
+QWidget { color: $text; font-family: "$font_body"; font-size: ${fs_body}px; }
+QMainWindow, QStackedWidget, QScrollArea > QWidget > QWidget { background: $bg; }
+QDialog { background: $surface; }
+QLabel, QCheckBox, QRadioButton, QGroupBox { background: transparent; }
+QLabel:disabled, QCheckBox:disabled, QRadioButton:disabled { color: $disabled_text; }
+
+/* type roles: widget.setProperty("role", "h1") */
+QLabel[role="h1"] { font-family: "$font_heading"; font-size: ${fs_h1}px; font-weight: $fw_h1; }
+QLabel[role="h2"] { font-family: "$font_heading"; font-size: ${fs_h2}px; font-weight: $fw_h2; }
+QLabel[role="h3"] { font-family: "$font_heading"; font-size: ${fs_h3}px; font-weight: $fw_h3; }
+QLabel[role="h4"] { font-family: "$font_heading"; font-size: ${fs_h4}px; font-weight: $fw_h4; }
+QLabel[role="h5"] { font-family: "$font_heading"; font-size: ${fs_h5}px; font-weight: $fw_h5; }
+QLabel[role="title"] { font-family: "$font_heading"; font-size: ${fs_title}px; font-weight: $fw_title; }
+QLabel[role="kicker"] { font-size: ${fs_kicker}px; color: $accent; }
+QLabel[role="caption"], QLabel[role="muted"] { font-size: ${fs_caption}px; color: $muted; }
+QLabel[role="label"] { font-size: 12px; color: $label; }
+QLabel[role="link"] { color: $accent; }
+QFrame[role="hr"] { background: $divider; border: none; min-height: 1px; max-height: 1px; }
+QFrame[role="vr"] { background: $divider; border: none; min-width: 1px; max-width: 1px; }
+
+/* tags: QLabel with property tag = accent | neutral | outline */
+QLabel[tag] { font-size: 11px; padding: 3px 10px; border-radius: 3px; }
+QLabel[tag="accent"] { background: $tag_bg; color: $tag_fg; }
+QLabel[tag="neutral"] { background: $tag_neutral_bg; color: $tag_neutral_fg; }
+QLabel[tag="outline"] { border: 1px solid $accent; color: $accent; }
+
+/* buttons: default = secondary; property variant = primary | ghost | icon */
+QPushButton {
+  font-family: "$font_heading"; font-weight: $heading_weight; font-size: 14px;
+  color: $text; background: transparent; border: 1px solid $divider;
+  border-radius: ${radius_md}px; padding: ${space_2}px 17px; min-height: 18px;
+}
+QPushButton:hover { background: $text_hover; }
+QPushButton:pressed { background: $text_pressed; }
+QPushButton:focus { border-color: $accent; }
+QPushButton:disabled { color: $disabled_text; border-color: $disabled_border; background: transparent; }
+QPushButton[variant="primary"] { color: $accent; border-color: $accent; }
+QPushButton[variant="primary"]:hover { background: $accent_hover; }
+QPushButton[variant="primary"]:pressed { background: $accent_press_tint; border-color: $accent_pressed; }
+QPushButton[variant="primary"]:focus { border: 2px solid $accent; padding: 8px 16px; }
+QPushButton[variant="primary"]:disabled { color: $disabled_text; border-color: $disabled_border; }
+QPushButton[variant="ghost"] { color: $accent; border-color: transparent; padding: ${space_2}px ${space_1}px; }
+QPushButton[variant="ghost"]:hover { background: $ghost_hover; }
+QPushButton[variant="ghost"]:pressed { background: $ghost_press; }
+QPushButton[variant="ghost"]:focus { border-color: $accent; }
+QPushButton[variant="icon"] { padding: 0; min-width: 34px; max-width: 34px; min-height: 34px; max-height: 34px; }
+QPushButton::menu-indicator { image: url($icon_chevron_down); subcontrol-position: right center; right: 8px; width: 12px; }
+
+QToolButton { background: transparent; border: 1px solid transparent; border-radius: ${radius_md}px; padding: 5px; color: $text; }
+QToolButton:hover { background: $text_hover; }
+QToolButton:pressed { background: $text_pressed; }
+QToolButton:checked { border-color: $accent; color: $accent; }
+QToolButton:focus { border-color: $accent; }
+QToolButton::menu-indicator { image: none; }
+
+/* inputs */
+QLineEdit, QTextEdit, QPlainTextEdit, QSpinBox, QDoubleSpinBox, QDateEdit, QTimeEdit, QComboBox {
+  background: transparent; color: $text; font-size: 14px;
+  border: 1px solid $divider; border-radius: ${radius_md}px;
+  padding: 6px 10px; min-height: 22px;
+  selection-background-color: $selection; selection-color: $text;
+}
+QTextEdit, QPlainTextEdit { padding: 6px; }
+QLineEdit:hover, QTextEdit:hover, QPlainTextEdit:hover, QSpinBox:hover, QDoubleSpinBox:hover, QDateEdit:hover, QTimeEdit:hover, QComboBox:hover { border-color: $border_hover; }
+QLineEdit:focus, QTextEdit:focus, QPlainTextEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus, QDateEdit:focus, QTimeEdit:focus, QComboBox:focus, QComboBox:on { border-color: $accent; }
+QLineEdit:disabled, QTextEdit:disabled, QPlainTextEdit:disabled, QSpinBox:disabled, QComboBox:disabled { color: $disabled_text; border-color: $disabled_border; }
+QLineEdit[invalid="true"] { border-color: $accent_pressed; }
+
+QComboBox { padding-right: 28px; }
+QComboBox::drop-down { subcontrol-origin: padding; subcontrol-position: center right; width: 26px; border: none; }
+QComboBox::down-arrow { image: url($icon_chevron_down); width: 14px; height: 14px; }
+QComboBox::down-arrow:disabled { image: url($icon_chevron_down_disabled); }
+QComboBox QAbstractItemView {
+  background: $surface; color: $text; border: 1px solid $divider; border-radius: ${radius_md}px;
+  padding: 4px; outline: 0; selection-background-color: $accent_hover; selection-color: $accent_text;
+}
+QComboBox QAbstractItemView::item { min-height: 26px; padding: 0 8px; border-radius: ${radius_sm}px; }
+
+QSpinBox, QDoubleSpinBox, QDateEdit, QTimeEdit { padding-right: 24px; }
+QAbstractSpinBox::up-button, QAbstractSpinBox::down-button { subcontrol-origin: border; width: 22px; border: none; background: transparent; }
+QAbstractSpinBox::up-button { subcontrol-position: top right; margin-top: 3px; }
+QAbstractSpinBox::down-button { subcontrol-position: bottom right; margin-bottom: 3px; }
+QAbstractSpinBox::up-button:hover, QAbstractSpinBox::down-button:hover { background: $text_hover; }
+QAbstractSpinBox::up-arrow { image: url($icon_chevron_up); width: 11px; height: 11px; }
+QAbstractSpinBox::down-arrow { image: url($icon_chevron_down); width: 11px; height: 11px; }
+
+/* checks & radios: stroke, not fill */
+QCheckBox, QRadioButton { spacing: 8px; font-size: 14px; }
+QCheckBox::indicator, QRadioButton::indicator { width: 14px; height: 14px; border: 1px solid $divider_strong; background: transparent; }
+QCheckBox::indicator { border-radius: ${radius_sm}px; }
+QRadioButton::indicator { border-radius: 8px; }
+QCheckBox::indicator:hover, QRadioButton::indicator:hover { border-color: $accent; }
+QCheckBox:focus::indicator, QRadioButton:focus::indicator { border-color: $accent; }
+QCheckBox::indicator:checked { border-color: $accent; image: url($icon_check); }
+QCheckBox::indicator:indeterminate { border-color: $accent; image: url($icon_minus); }
+QRadioButton::indicator:checked { border-color: $accent; image: url($icon_dot); }
+QCheckBox::indicator:disabled, QRadioButton::indicator:disabled { border-color: $disabled_border; }
+QCheckBox::indicator:checked:disabled { image: url($icon_check_disabled); }
+QRadioButton::indicator:checked:disabled { image: url($icon_dot_disabled); }
+
+/* segmented control: QButtonGroup of checkable QPushButtons with variant="seg" inside a QFrame[role="seg"] */
+QFrame[role="seg"] { border: 1px solid $divider; border-radius: ${radius_md}px; background: transparent; }
+QPushButton[variant="seg"] { font-family: "$font_body"; font-weight: 400; font-size: 13px; border: none; border-radius: 0; padding: 7px 12px; min-height: 0; }
+QPushButton[variant="seg"][pos="mid"], QPushButton[variant="seg"][pos="last"] { border-left: 1px solid $divider; }
+QPushButton[variant="seg"]:checked { color: $accent; border: 1px solid $accent; }
+QPushButton[variant="seg"]:checked:hover { background: transparent; }

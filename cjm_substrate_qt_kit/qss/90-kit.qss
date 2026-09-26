@@ -1,0 +1,19 @@
+/* The kit layer — appended after any system's templates (theme.render_qss).
+   The STATE CHANNEL every kit widget speaks: setProperty("role", "danger")
+   and the stylesheet colors it, per widget, declaratively. The six roles +
+   dim (muted text) + accent. Type roles (h1..h5, title, kicker, caption,
+   label, muted, link) belong to the system templates; the value sets are
+   disjoint on the one `role` property. */
+*[role="danger"] { color: $danger; }
+*[role="warn"] { color: $warn; }
+*[role="ok"] { color: $ok; }
+*[role="info"] { color: $info; }
+*[role="meta"] { color: $meta; }
+*[role="note"] { color: $note; }
+*[role="dim"] { color: $dim; }
+*[role="accent"] { color: $accent; }
+
+/* kit chrome that the system templates do not name */
+QSplitter::handle { background: $divider_solid; }
+QSplitter::handle:horizontal { width: 1px; }
+QSplitter::handle:vertical { height: 1px; }

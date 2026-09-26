@@ -4,6 +4,51 @@ The kit's release record. Each entry names the ruling or work item the
 change served, so a version reads back to its decision on the graph.
 History before 0.0.7 lives in git and in the graph's session lens.
 
+## 0.0.8 — 2026-09-25
+
+Token schema v1 + the design-system runtime (rulings a439c226 the design
+system is data, 8b7351e4 the kit's charter; design DEC 0b1cfd81; work item
+95626908): a design system is one tokens.json, resolved into one vocabulary
+that ONE Theme lands on the application with ONE change signal.
+
+- `tokens` — schema v1 (the handoff bundle's shape + the six state roles per
+  mode, mono / ui font slots, a `scheme` map for OS following, a `reading`
+  block, an `icons` declaration); `check` refuses a malformed system naming
+  every problem; `resolve` emits the flat vocabulary headlessly; `to_css`
+  projects the CSS custom-properties layer for the web side.
+- `theme` — rewritten around the `Theme` object: Fusion pinned, the system's
+  fonts registered once per process, QPalette + rendered QSS templates (the
+  system's own `qss/` or Classical's, then the kit layer `qss/90-kit.qss`
+  with the state channel) + recolored indicator icons; `set_mode` /
+  `set_system` / `toggle` re-target the one Theme; `on_change(slot)` is the
+  one wire (bound methods held weakly, dropped when their widget dies);
+  `apply_theme(app, system=None, mode=None, persist=False)` walks the
+  preference precedence. RETIRED: the LIGHT / DARK dicts, resolve_theme,
+  load_theme, overrides, the `_live` registry, build_qss, heading-scale.
+- ONE VOCABULARY: the kit's kebab keys (base / content / content-dim / border
+  / raised / selection-bg / selection-content / accent-content) are gone;
+  every painter reads the resolved names (bg / text / dim / divider_solid /
+  surface / selection_solid / accent …). The state role for muted text is
+  `dim`; QSS `role="content-dim"` became `role="dim"`.
+- Every kit widget restyles on the signal — PickerList re-renders its rows
+  in place (cursor kept), VerdictStrip / ProvenancePane repaint, FormShell
+  re-renders its header, KeyHintsOverlay re-renders while visible, FindBar
+  repaints its matches, StatusStrip roles follow the stylesheet. Per-widget
+  inline QSS chrome retired: the system templates style the chrome.
+- `systems/` — Classical and Netrunner vendored as package data (tokens,
+  per-system QSS, OFL fonts, Netrunner's painted widgets); `icons/` — the
+  Lucide subset (ISC); `widgets` — the component-class helpers (text / tag /
+  button / hr / Card / Segmented / elevate / repolish).
+- `prefs` — the persisted system + mode (`$XDG_CONFIG_HOME/cjm-substrate/
+  theme.json`); precedence args > `CJM_THEME` > file > classical:auto.
+- `gallery` — the seed gallery (`python -m cjm_substrate_qt_kit.gallery
+  --system --mode`): Controls / Data / Cards / Kit + a system's own page.
+- `tools` — `css_to_tokens` (import a web-first system), `icons_pull` (from
+  the local Lucide clone, upstream second), `build` (static QSS + CSS).
+- `testbed` — variants are now system / mode / fs_body / line_height /
+  font_body over the resolved vars (`--systems`, `--modes`, pixel sizes).
+- WORD_ROLES stays until the spines emit role words (06d729ab).
+
 ## 0.0.7 — 2026-09-25
 
 The Textual retirement (ruling 8b7351e4, work item 21145648): the kit is now

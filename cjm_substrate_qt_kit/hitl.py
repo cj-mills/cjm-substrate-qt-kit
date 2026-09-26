@@ -34,7 +34,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QLabel, QTextBrowser, QVBoxLayout, QWidget
 
 from .pickerlist import PickerList, Row, Span
-from .theme import current_theme, make_font, state_color
+from .theme import current_theme, make_font, on_change, state_color
 
 Item = Dict[str, Any]
 
@@ -55,12 +55,12 @@ def fmt_ts(seconds: Optional[float]) -> str:  # mm:ss.s, or --:-- when unknown
 
 def worklist_row(item: Item) -> Row:  # One paint-ready PickerList row
     """Project one item into a picker row: tier glyph (? / ??), the category
-    chip (tier 1 cyan, tier 2 dim magenta — the walk-lane chip grammar), the
+    chip (tier 1 meta, tier 2 dim note — the walk-lane chip grammar, in role words), the
     span, the confidence, then the quote. A non-pending state dims the row
     and appends its tag (an accepted-elsewhere row a host may keep listed)."""
     tier = int(item.get("tier", 1) or 1)
     glyph = "??" if tier == 2 else "? "
-    chip_style = "magenta" if tier == 2 else "cyan"
+    chip_style = "note" if tier == 2 else "meta"
     state = str(item.get("state") or "pending")
     dim = state != "pending"
     conf = item.get("confidence")
@@ -175,6 +175,11 @@ class VerdictStrip(QLabel):
         self.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         self.setFont(make_font(kind="mono"))
         self._plain = ""
+        self._last = None            # the last set_verdicts args (re-painted on theme change)
+        self.restyle()
+        on_change(self._on_theme)    # a BOUND method: the wire dies with the widget
+
+    def _on_theme(self, _theme) -> None:
         self.restyle()
 
     def set_verdicts(self, tier1: Optional[Dict[str, int]],
@@ -183,6 +188,7 @@ class VerdictStrip(QLabel):
                      extra: str = "") -> None:
         """Paint the counts. A tier whose counts are all zero is left out;
         watermark is a preformatted text ("299.7s" / "none")."""
+        self._last = (tier1, tier2, watermark, extra)
         t = current_theme()
         parts_html: List[str] = []
         parts_plain: List[str] = []
@@ -192,11 +198,11 @@ class VerdictStrip(QLabel):
             cells_html = []
             cells_plain = []
             for k, v in counts.items():
-                color = state_color(VERDICT_ROLES.get(k, "content"), t)
+                color = state_color(VERDICT_ROLES.get(k, "text"), t)
                 cells_plain.append(f"{k} {v}")
                 cells_html.append(
                     "<span style='color:%s'>%s %s</span>"
-                    % (color.name() if color is not None else t["content"],
+                    % (color.name() if color is not None else t["text"],
                        _html.escape(str(k)), int(v or 0)))
             parts_plain.append(f"{label}: " + " · ".join(cells_plain))
             parts_html.append(f"{label}: " + " · ".join(cells_html))
@@ -209,16 +215,17 @@ class VerdictStrip(QLabel):
             parts_html.append(_html.escape(extra))
         self._plain = "  |  ".join(parts_plain)
         self.setText("<span style='color:%s'>%s</span>"
-                     % (t["content-dim"], "  |  ".join(parts_html) or "&nbsp;"))
+                     % (t["dim"], "  |  ".join(parts_html) or "&nbsp;"))
 
     def plain_text(self) -> str:
         return self._plain
 
     def restyle(self) -> None:
-        t = current_theme()
-        self.setStyleSheet("QLabel { background: %s; border: 1px solid %s; padding: 2px 4px; }"
-                           % (t["surface"], t["border"]))
+        """The live theme's mono font; the painted counts re-render with the
+        new colors (they are baked into the HTML)."""
         self.setFont(make_font(kind="mono"))
+        if self._last is not None:
+            self.set_verdicts(*self._last)
 
 
 class ProvenancePane(QTextBrowser):
@@ -236,16 +243,20 @@ class ProvenancePane(QTextBrowser):
         self._entries: List[Tuple[str, str]] = []
         self.restyle()
         self.set_entries([])
+        on_change(self._on_theme)    # a BOUND method: the wire dies with the widget
+
+    def _on_theme(self, _theme) -> None:
+        self.restyle()
 
     def set_entries(self, entries: Sequence[Tuple[str, Any]]) -> None:
         self._entries = [(str(k), "" if v is None else str(v)) for k, v in entries]
         t = current_theme()
         if not self._entries:
-            self.setHtml("<span style='color:%s'>(no provenance)</span>" % t["content-dim"])
+            self.setHtml("<span style='color:%s'>(no provenance)</span>" % t["dim"])
         else:
             rows = "".join(
                 "<tr><td style='color:%s;padding-right:8px'>%s</td><td style='color:%s'>%s</td></tr>"
-                % (t["content-dim"], _html.escape(k), t["content"], _html.escape(v))
+                % (t["dim"], _html.escape(k), t["text"], _html.escape(v))
                 for k, v in self._entries)
             self.setHtml("<table cellspacing='0' cellpadding='0'>%s</table>" % rows)
         fm = self.fontMetrics()
@@ -258,10 +269,11 @@ class ProvenancePane(QTextBrowser):
         return "\n".join(f"{k}: {v}" for k, v in self._entries)
 
     def restyle(self) -> None:
-        t = current_theme()
-        self.setStyleSheet("QTextBrowser { background: %s; border: 1px solid %s; color: %s; }"
-                           % (t["surface"], t["border"], t["content"]))
+        """The live theme's mono font; the entries re-render with the new
+        colors (baked into the HTML)."""
         self.setFont(make_font(kind="mono"))
+        if hasattr(self, "_entries"):
+            self.set_entries(self._entries)
 
 
 class HitlPanel(QWidget):

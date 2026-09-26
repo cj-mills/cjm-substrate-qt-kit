@@ -26,7 +26,7 @@ from PySide6.QtWidgets import QDialog, QLabel, QLineEdit, QTextBrowser, QVBoxLay
 
 from .keyhints import is_close_anchor, modal_bounds, modal_header, open_centered
 from .pickerlist import PickerList
-from .theme import current_theme
+from .theme import current_theme, on_change
 
 
 class FormShell(QDialog):
@@ -56,6 +56,9 @@ class FormShell(QDialog):
         self.foot = QLabel(self)
         self.foot.setTextFormat(Qt.TextFormat.RichText)
         self.foot.setWordWrap(True)
+        self.foot.setProperty("role", "dim")
+        self.foot.setContentsMargins(6, 4, 6, 4)
+        self._title_html = ""
         lay = QVBoxLayout(self)
         lay.setContentsMargins(1, 1, 1, 1)
         lay.setSpacing(0)
@@ -63,22 +66,24 @@ class FormShell(QDialog):
         lay.addWidget(self.body, 1)
         lay.addWidget(self.editor)
         lay.addWidget(self.foot)
+        on_change(self._on_theme)
 
     # ---- chrome ----------------------------------------------------------
 
     def set_header(self, title_html: str) -> None:
         """Repaint the fixed header (modal_header grammar: the mouse close
-        rides every title) and re-theme the chrome around it. `title_html`
-        is a rich-text fragment — callers escape user-derived content."""
+        rides every title). `title_html` is a rich-text fragment — callers
+        escape user-derived content. Chrome comes from the system's
+        stylesheet; the header document re-renders on theme change."""
+        self._title_html = title_html
         t = current_theme()
-        chrome = ("background: %s; border: 1px solid %s; padding: 6px;"
-                  % (t["surface"], t["border"]))
-        self.head.setStyleSheet("QTextBrowser { %s }" % chrome)
-        self.foot.setStyleSheet("QLabel { %s color: %s; }"
-                                % (chrome, t["content-dim"]))
+        self.head.document().setDocumentMargin(6.0)
         self.head.setHtml("<div style='color:%s'>%s</div>"
-                          % (t["content"], modal_header(title_html, t)))
-        self.body.restyle()
+                          % (t["text"], modal_header(title_html, t)))
+
+    def _on_theme(self, _theme) -> None:
+        if self._title_html:
+            self.set_header(self._title_html)
 
     def set_footer(self, html: str) -> None:
         """Repaint the fixed footer — hints, and whatever transient note or

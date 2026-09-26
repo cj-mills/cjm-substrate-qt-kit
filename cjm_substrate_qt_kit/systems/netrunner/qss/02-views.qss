@@ -1,0 +1,70 @@
+/* tabs: solid fill on selected, display face */
+QTabWidget::pane { border: 1px solid $line; top: -1px; background: $bg; }
+QTabBar { background: transparent; qproperty-drawBase: 0; }
+QTabBar::tab { font-family: "$font_heading"; font-size: 13px; color: $text; background: $bg; border: 1px solid $line; border-bottom: none; padding: 7px 16px; margin-right: -1px; }
+QTabBar::tab:hover { background: $accent_hover; }
+QTabBar::tab:selected { background: $fill; color: $fill_text; border-color: $fill; }
+QTabBar::tab:disabled { color: $disabled_text; }
+QTabBar::close-button { image: url($icon_x); subcontrol-position: right; }
+
+/* tables, trees, lists */
+QAbstractItemView { background: $bg; alternate-background-color: $surface; color: $text; border: 1px solid $line; border-radius: 0; outline: 0; selection-background-color: $secondary_hover; selection-color: $secondary; gridline-color: $divider; font-size: ${fs_body}px; }
+QTableView::item, QTreeView::item, QListView::item { padding: 5px 8px; border: none; border-bottom: 1px solid $divider; }
+QTableView::item:hover, QTreeView::item:hover, QListView::item:hover { background: $accent_hover; }
+QTableView::item:selected, QTreeView::item:selected, QListView::item:selected { background: $secondary_hover; color: $secondary; }
+QTableView QTableCornerButton::section { background: $fill; border: none; }
+QHeaderView { background: transparent; border: none; }
+QHeaderView::section { background: $fill; color: $fill_text; font-family: "$font_heading"; font-size: 11px; padding: 6px 8px; border: none; border-right: 1px solid $bg; }
+QHeaderView::up-arrow, QHeaderView::down-arrow { width: 10px; height: 10px; subcontrol-position: center right; }
+QHeaderView::up-arrow { image: url($icon_chevron_up); }
+QHeaderView::down-arrow { image: url($icon_chevron_down); }
+QTreeView::branch { background: transparent; }
+QTreeView::branch:has-children:closed { image: url($icon_chevron_right); }
+QTreeView::branch:has-children:open { image: url($icon_chevron_down); }
+
+/* menus & toolbars */
+QMenuBar { background: $bg; border-bottom: 1px solid $line; padding: 2px 4px; }
+QMenuBar::item { background: transparent; padding: 5px 10px; }
+QMenuBar::item:selected { background: $accent_hover; }
+QMenuBar::item:pressed { background: $fill; color: $fill_text; }
+QMenu { background: $surface; color: $text; border: 1px solid $line; padding: 2px; }
+QMenu::item { padding: 5px 28px 5px 12px; background: transparent; }
+QMenu::item:selected { background: $fill; color: $fill_text; }
+QMenu::item:disabled { color: $disabled_text; }
+QMenu::separator { height: 1px; background: $line; margin: 3px 6px; }
+QMenu::indicator { width: 12px; height: 12px; left: 6px; }
+QMenu::indicator:checked { image: url($icon_check); }
+QMenu::right-arrow { image: url($icon_chevron_right); width: 12px; height: 12px; }
+QToolBar { background: $bg; border: none; border-bottom: 1px solid $line; spacing: 2px; padding: 3px 6px; }
+QToolBar::separator { background: $line; width: 1px; margin: 5px 5px; }
+QStatusBar { background: $bg; color: $text; border-top: 1px solid $line; font-size: 12px; }
+QStatusBar::item { border: none; }
+QToolTip { background: $bg; color: $secondary; border: 1px solid $secondary; padding: 3px 6px; font-size: 12px; }
+
+/* scrollbars: blocky, no arrows */
+QScrollBar:vertical { background: $bg; width: 8px; margin: 0; border-left: 1px solid $divider; }
+QScrollBar:horizontal { background: $bg; height: 8px; margin: 0; border-top: 1px solid $divider; }
+QScrollBar::handle:vertical { background: $fill; min-height: 24px; }
+QScrollBar::handle:horizontal { background: $fill; min-width: 24px; }
+QScrollBar::handle:hover, QScrollBar::handle:pressed { background: $text; }
+QScrollBar::add-line, QScrollBar::sub-line { width: 0; height: 0; border: none; background: none; }
+QScrollBar::add-page, QScrollBar::sub-page { background: none; }
+QAbstractScrollArea::corner { background: $bg; }
+
+/* sliders & progress: square handle, segmented chunk */
+QSlider { min-height: 18px; }
+QSlider::groove:horizontal { height: 2px; background: $divider_strong; }
+QSlider::sub-page:horizontal { height: 2px; background: $text; }
+QSlider::handle:horizontal { width: 10px; height: 14px; margin: -6px 0; background: $secondary; border: none; }
+QSlider::groove:vertical { width: 2px; background: $divider_strong; }
+QSlider::add-page:vertical { width: 2px; background: $text; }
+QSlider::handle:vertical { width: 14px; height: 10px; margin: 0 -6px; background: $secondary; border: none; }
+QSlider::handle:hover { background: $accent_pressed; }
+QSlider::handle:disabled { background: $disabled_border; }
+QProgressBar { border: 1px solid $line; border-radius: 0; background: $bg; min-height: 14px; max-height: 14px; color: transparent; text-align: center; padding: 2px; }
+QProgressBar::chunk { background: $text; width: 6px; margin-right: 2px; }
+
+QGroupBox { border: 1px solid $line; margin-top: 14px; padding: 12px; padding-top: 16px; font-family: "$font_heading"; font-size: 12px; }
+QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 4px; color: $text; }
+QDialogButtonBox { dialogbuttonbox-buttons-have-icons: 0; }
+QMessageBox { background: $surface; }

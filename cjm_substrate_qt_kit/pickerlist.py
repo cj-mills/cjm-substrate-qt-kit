@@ -38,7 +38,7 @@ from PySide6.QtGui import QColor, QFontMetrics, QTextDocument
 from PySide6.QtWidgets import (QAbstractItemView, QListWidget, QListWidgetItem, QStyle,
                                QStyledItemDelegate, QTextBrowser, QVBoxLayout, QWidget)
 
-from .theme import current_theme, make_font, state_color
+from .theme import current_theme, make_font, on_change, state_color
 
 Span = Tuple[str, str]          # (text, style words: color word(s) + "bold")
 Row = Dict[str, Any]            # {"kind", "spans", "key"}
@@ -51,11 +51,11 @@ def spans_to_html(spans: Sequence[Span],          # One row's styled spans
                   ) -> str:  # One rich-text row fragment (whitespace-preserving)
     """Project style-worded spans into one QTextDocument-ready fragment.
 
-    Style words route through the theme (legacy Rich words via WORD_ROLES —
-    the style.apply_row_style mapping, kept span-granular here so a row can
-    mix chips: a yellow mark count beside a green purpose chip). The row
-    wraps in white-space:pre so the mono column alignment the span builders
-    lean on survives HTML."""
+    Style words route through the theme's state channel (role words, and the
+    legacy Rich words via WORD_ROLES — the style.apply_row_style mapping,
+    kept span-granular here so a row can mix chips: a warn mark count beside
+    an ok purpose chip). The row wraps in white-space:pre so the mono column
+    alignment the span builders lean on survives HTML."""
     t = theme if theme is not None else current_theme()
     parts: List[str] = []
     for text, style in spans:
@@ -79,7 +79,7 @@ class SpanRowDelegate(QStyledItemDelegate):
     """Paint one row's rich-text fragment (the _ROW_HTML data) through a
     QTextDocument — QListWidgetItem's plain text + single foreground loses
     the span chips the picker rows carry. Selection paints the theme's
-    raised ground behind the fragment (the cursor row's visual)."""
+    selection ground behind the fragment (the cursor row's visual)."""
 
     _SIZE_CACHE_MAX = 20000
 
@@ -102,7 +102,7 @@ class SpanRowDelegate(QStyledItemDelegate):
         doc = self._doc(option, index)
         painter.save()
         if option.state & QStyle.StateFlag.State_Selected:
-            painter.fillRect(option.rect, QColor(current_theme()["raised"]))
+            painter.fillRect(option.rect, QColor(current_theme()["selection_solid"]))
         painter.translate(option.rect.topLeft())
         doc.drawContents(painter)
         painter.restore()
@@ -143,6 +143,8 @@ class PickerList(QWidget):
         self._pickable: List[int] = []   # pickable index -> view row
         self._keys: List[Any] = []       # pickable index -> row key
         self._plain: List[str] = []      # every row's flat text (probe seam)
+        self._rows: List[Row] = []       # the rows as given (re-rendered on theme change)
+        self._detail: Optional[List[Sequence[Span]]] = None
         self._cursor = 0
         self.view = QListWidget(self)
         self.view.setFocusPolicy(Qt.FocusPolicy.NoFocus)
@@ -171,6 +173,7 @@ class PickerList(QWidget):
             lay.addWidget(self.view, 1)
             lay.addWidget(self.detail)
         self.restyle()
+        on_change(self._on_theme)
 
     # ---- rows ------------------------------------------------------------
 
@@ -181,6 +184,7 @@ class PickerList(QWidget):
         position it already holds, not learning a new one."""
         self.view.clear()
         self._pickable, self._keys, self._plain = [], [], []
+        self._rows = list(rows)
         t = current_theme()
         for r in rows:
             self._plain.append("".join(tx for tx, _ in (r.get("spans") or [])))
@@ -289,13 +293,14 @@ class PickerList(QWidget):
         """Repaint the budget-reserved detail pane: span lines (or nothing,
         which hides it). Height fits the content, capped at the budget —
         the list keeps the rest of the page."""
+        self._detail = [list(ln) for ln in lines] if lines else None
         if not lines:
             self.detail.setVisible(False)
             return
         t = current_theme()
         body = "".join(spans_to_html(ln, t) for ln in lines)
         self.detail.setHtml("<div style='color:%s'>%s</div>"
-                            % (t["content"], body))
+                            % (t["text"], body))
         fm = QFontMetrics(self.detail.font())
         cap = fm.lineSpacing() * self._detail_budget + 10
         doc = self.detail.document()
@@ -306,11 +311,20 @@ class PickerList(QWidget):
     # ---- chrome ----------------------------------------------------------
 
     def restyle(self) -> None:
-        """Re-apply the live theme's chrome (call on theme swap)."""
+        """Re-apply the live theme: the mono font and every row's rich-text
+        fragment (colors are baked into the HTML at render time, so a theme
+        change re-renders the fragments in place — no row rebuild, the
+        cursor stays). Chrome comes from the system's stylesheet."""
         t = current_theme()
-        chrome = ("background: %s; border: 1px solid %s; color: %s;"
-                  % (t["surface"], t["border"], t["content"]))
-        self.view.setStyleSheet("QListWidget { %s }" % chrome)
-        self.detail.setStyleSheet("QTextBrowser { %s }" % chrome)
-        self.view.setFont(make_font(kind="mono"))
-        self.detail.setFont(make_font(kind="mono"))
+        self.view.setFont(make_font(t, "mono"))
+        self.detail.setFont(make_font(t, "mono"))
+        for i, r in enumerate(self._rows):
+            item = self.view.item(i)
+            if item is not None:
+                item.setData(_ROW_HTML, spans_to_html(r.get("spans") or [], t))
+        if self._detail:
+            self.set_detail(self._detail)
+        self.view.viewport().update()
+
+    def _on_theme(self, _theme) -> None:
+        self.restyle()

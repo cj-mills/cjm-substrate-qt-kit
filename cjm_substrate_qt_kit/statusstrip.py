@@ -94,7 +94,7 @@ class StatusStrip(QWidget):
         layout.addWidget(self.context)
         if hints:
             self.hints = QLabel("", self)
-            self._set_role(self.hints, "content-dim")
+            self._set_role(self.hints, "dim")
             self._selectable(self.hints)
             layout.addWidget(self.hints)
 

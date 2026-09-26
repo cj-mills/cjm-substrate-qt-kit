@@ -28,7 +28,7 @@ def test_fmt_ts_and_row_projection(app):
     assert "“Forward by David Perel.”" in flat and r1["key"] == "p1"
     r2 = worklist_row(items()[1])
     flat2 = "".join(t for t, _ in r2["spans"])
-    assert flat2.startswith("??research-mark") and r2["spans"][1][1].endswith("magenta")
+    assert flat2.startswith("??research-mark") and r2["spans"][1][1].endswith("note")
     r3 = worklist_row(items()[2])
     flat3 = "".join(t for t, _ in r3["spans"])
     assert flat3.endswith("[accepted]") and "c=" not in flat3

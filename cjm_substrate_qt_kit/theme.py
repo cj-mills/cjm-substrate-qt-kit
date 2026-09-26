@@ -1,179 +1,360 @@
-"""Semantic theme tokens for the lane: one flat dict -> QPalette + QSS + fonts.
+"""The design-system RUNTIME: ONE Theme object, ONE change signal (ruling
+8b7351e4 stratum (a); DEC 0b1cfd81 the build shape).
 
-A theme is data (kebab-case token keys, JSON-shaped): palette roles
-(base / surface / raised / border, content / content-dim, selection-bg /
-selection-content, accent / accent-content), semantic STATE channels
-(danger / warn / ok / info / meta / note), and typography
-(font-body-* / font-mono-* / font-ui-*, measure, heading-scale). The kit
-generates everything from the dict — apps never write raw QSS. Missing
-tokens fall back per-token to the built-in light/dark pair; the OS scheme
-(QStyleHints.colorScheme, Qt 6.5+) picks the member unless a scheme is
-pinned. Legacy Rich color words (the spine wire format) resolve through
-WORD_ROLES as a temporary compatibility mapping."""
+A Theme binds a QApplication to a design system (tokens as data, see
+`tokens`) in one of the system's modes: Fusion pinned so QSS renders the
+same on every OS, the system's fonts registered, a QPalette built from the
+resolved vars (native widgets follow), the system's QSS templates rendered
+with the recolored indicator icons, and the application font set. Every kit
+widget connects to the change signal in its constructor and restyles itself
+— a mode or system switch re-themes the whole window, including rich-text
+painters, with no app code (the survey's stale-widget gap closes by
+construction).
 
-import json
+    theme = apply_theme(app)                       # prefs / env / default
+    theme = apply_theme(app, "netrunner", "blue")  # an app's CLI flag
+    theme.set_mode("dark"); theme.set_system("classical"); theme.toggle()
+    on_change(widget.restyle)                      # any widget, any time
+    current_theme()["accent"]                      # the live vars (HTML painters)
+
+`current_theme()` is the flat vocabulary `tokens.resolve` emits — the one
+vocabulary (fork 1): $bg $surface $text $accent $muted_solid $divider_solid
+$selection_solid, the six state roles + `dim`, the font slots, the scale.
+Before any apply (headless tests) it is Classical's first mode.
+
+Legacy Rich color words (the spine wire format: red / yellow / green / blue /
+cyan / magenta / dim) still resolve through WORD_ROLES until the spines emit
+semantic role words (06d729ab)."""
+
+import inspect
+import sys
+import tempfile
+import weakref
 from pathlib import Path
-from typing import Optional
+from string import Template
+from typing import Callable, Dict, List, Optional, Union
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor, QFont, QFontMetrics, QPalette, QTextBlockFormat, QTextCursor
+import shiboken6
+from PySide6.QtCore import QObject, Qt, Signal
+from PySide6.QtGui import (QColor, QFont, QFontDatabase, QFontMetrics, QPalette, QTextBlockFormat,
+                           QTextCursor)
 from PySide6.QtWidgets import QApplication, QTextEdit, QWidget
 
-# Legacy Rich color words (spine wire format) -> semantic state roles.
-# Temporary compatibility mapping; migrating the spines to semantic words
-# is a named future item, not v1 scope.
+from . import prefs, systems, tokens as T
+from .icons import IconSet
+
+KIT_QSS = Path(__file__).parent / "qss"   # the kit layer, appended after any system's templates
+
+# Legacy Rich color words (spine wire format) -> state roles. Retires when the
+# spines emit role words (06d729ab); until then every painter resolves both.
 WORD_ROLES = {"red": "danger", "yellow": "warn", "green": "ok",
-              "blue": "info", "cyan": "meta", "magenta": "note",
-              "dim": "content-dim"}
+              "blue": "info", "cyan": "meta", "magenta": "note", "dim": "dim"}
 
-_TYPOGRAPHY = {"font-body-family": "", "font-body-size": 12.0,
-               "font-body-weight": 400, "font-body-line-height": 1.45,
-               "font-mono-family": "", "font-mono-size": 11.0,
-               "font-ui-family": "", "font-ui-size": 10.5,
-               "measure": 68, "heading-scale": 1.2}
+# stylesheet indicator images: hole name -> (icon, color var)
+QSS_ICONS = {
+    "chevron_down": ("chevron-down", "muted"), "chevron_down_disabled": ("chevron-down", "disabled_text"),
+    "chevron_up": ("chevron-up", "muted"), "chevron_right": ("chevron-right", "muted"),
+    "check": ("check", "accent"), "check_disabled": ("check", "disabled_text"),
+    "minus": ("minus", "accent"), "x": ("x", "muted"),
+    "dot": ("dot", "accent"), "dot_disabled": ("dot", "disabled_text"),
+}
 
-# Provisional reading-first pair — starting values are test-bed hypotheses
-# (family/size/line-height/measure/contrast tune on trial evidence).
-LIGHT = {"name": "kit-light",
-         "base": "#eceae4", "surface": "#f7f5f0", "raised": "#ffffff",
-         "border": "#d5d0c4", "content": "#20211f", "content-dim": "#5c6166",
-         "selection-bg": "#c7dbf0", "selection-content": "#20211f",
-         "accent": "#3d63a8", "accent-content": "#ffffff",
-         "danger": "#a83226", "warn": "#8a5f00", "ok": "#2c7a41",
-         "info": "#3d63a8", "meta": "#1f7386", "note": "#7d4796",
-         **_TYPOGRAPHY}
+# ---- the change signal + the live theme -------------------------------------
 
-DARK = {"name": "kit-dark",
-        "base": "#191b1f", "surface": "#20242a", "raised": "#292e36",
-        "border": "#3a4048", "content": "#e6e4df", "content-dim": "#9aa1a9",
-        "selection-bg": "#31455e", "selection-content": "#e6e4df",
-        "accent": "#7da2d9", "accent-content": "#12161c",
-        "danger": "#e0796d", "warn": "#d3a44a", "ok": "#6dbd83",
-        "info": "#82a5e0", "meta": "#5cb4c7", "note": "#bd8bd3",
-        **_TYPOGRAPHY}
-
-# Live-theme registry: what apply_theme last resolved, the overrides it
-# carried, and whether the scheme is pinned; the colorSchemeChanged hook
-# reads it to re-apply on OS flips.
-_live = {"theme": None, "overrides": None, "pinned": None, "connected": False}
+_listeners: List[object] = []          # weak refs to bound methods; strong refs to plain callables
+_registered_fonts: Dict[str, List[str]] = {}   # font file -> families, once per process
+_current: Optional["Theme"] = None
+_headless: Optional[Dict[str, str]] = None
 
 
-def _os_scheme() -> str:
-    """The OS color scheme as "light"/"dark" (dark when undetectable)."""
-    app = QApplication.instance()
-    hints = app.styleHints() if app is not None else None
-    scheme = hints.colorScheme() if hasattr(hints, "colorScheme") else None
-    return "light" if scheme == Qt.ColorScheme.Light else "dark"
+def on_change(slot: Callable) -> None:
+    """Subscribe `slot(theme)` to every mode / system change — the ONE wire,
+    alive before any Theme exists so widgets built before apply (and across
+    a system swap) all hang on it. A BOUND METHOD is held weakly and dropped
+    when its object dies (Python side) or its C++ half is deleted (checked at
+    dispatch) — the kit widgets subscribe this way. A plain callable (a
+    lambda, a module function) is held for the application's lifetime."""
+    if inspect.ismethod(slot):
+        _listeners.append(weakref.WeakMethod(slot))
+    else:
+        _listeners.append(slot)
 
 
-def resolve_theme(overrides: Optional[dict] = None,
-                  scheme: Optional[str] = None) -> dict:
-    """Merge override tokens onto the built-in pair member for the scheme
-    ("light"/"dark"; None = the OS scheme). Per-token fallback: anything a
-    custom theme omits keeps the default value."""
-    base = LIGHT if (scheme or _os_scheme()) == "light" else DARK
-    theme = dict(base)
-    theme.update(overrides or {})
-    return theme
+def _dispatch(theme: "Theme") -> None:
+    """Call every live listener; prune the dead (a GC'd owner, a deleted
+    C++ object) instead of letting a stale wire raise mid-repaint."""
+    for entry in list(_listeners):
+        fn = entry() if isinstance(entry, weakref.ref) else entry
+        owner = getattr(fn, "__self__", None)
+        if fn is None or (isinstance(owner, QObject) and not shiboken6.isValid(owner)):
+            try:
+                _listeners.remove(entry)
+            except ValueError:
+                pass
+            continue
+        fn(theme)
 
 
-def current_theme() -> dict:
-    """The theme apply_theme last landed (default-resolved before any apply)."""
-    return _live["theme"] or resolve_theme()
+def current() -> Optional["Theme"]:
+    """The live Theme (None before apply_theme)."""
+    return _current
 
 
-def load_theme(path) -> dict:
-    """Read a theme-as-data JSON file (a flat token dict): themes are shared
-    data a projection binds, never code."""
-    return json.loads(Path(path).read_text())
+def current_theme() -> Dict[str, str]:
+    """The live resolved vars; Classical's first mode before any apply."""
+    global _headless
+    if _current is not None:
+        return _current.vars
+    if _headless is None:
+        tok = T.load(systems.tokens_path(prefs.DEFAULT_SYSTEM))
+        _headless = T.resolve(tok, T.modes(tok)[0])
+    return _headless
 
 
-def state_color(word: str, theme: Optional[dict] = None) -> Optional[QColor]:
-    """Resolve a legacy style word or a semantic role to the theme's color
-    (None for words with no color binding, e.g. "bold")."""
-    t = theme if theme is not None else current_theme()
-    value = t.get(WORD_ROLES.get(word, word))
-    return QColor(value) if isinstance(value, str) and value.startswith("#") else None
+# ---- projections ------------------------------------------------------------
+
+def render_qss(tok: dict, mode: str, icons: IconSet, icon_out: Union[str, Path],
+               qss_dir: Path) -> str:
+    """Headless: tokens + mode -> the final stylesheet. The system's templates
+    (its own `qss/`, else Classical's) then the kit layer, each group in file
+    name order; `$holes` filled from the resolved vars; indicator SVGs
+    recolored into `icon_out`."""
+    v = T.resolve(tok, mode)
+    for hole, (name, color_var) in QSS_ICONS.items():
+        v[f"icon_{hole}"] = icons.write(name, v[color_var], icon_out)
+    files = sorted(Path(qss_dir).glob("*.qss")) + sorted(KIT_QSS.glob("*.qss"))
+    src = "\n".join(p.read_text(encoding="utf-8") for p in files)
+    return Template(src).safe_substitute(v)
 
 
-def make_font(theme: Optional[dict] = None, kind: str = "body") -> QFont:
-    """Build the theme's font for a slot: "body" / "mono" / "ui". An empty
-    family token means the system default (mono keeps the fixed style hint)."""
-    t = theme if theme is not None else current_theme()
+def build_palette(v: Dict[str, str]) -> QPalette:
+    """Project the vars onto QPalette so NATIVE widgets follow the theme (QSS
+    covers the styled subset; the palette covers the rest)."""
+    R, G = QPalette.ColorRole, QPalette.ColorGroup
+    p = QPalette()
+    roles = {
+        R.Window: v["bg"], R.WindowText: v["text"], R.Base: v["bg"], R.AlternateBase: v["row_alt_solid"],
+        R.Text: v["text"], R.Button: v["bg"], R.ButtonText: v["text"], R.BrightText: v["accent"],
+        R.Highlight: v["selection_solid"], R.HighlightedText: v["text"],
+        R.ToolTipBase: v["surface"], R.ToolTipText: v["text"], R.PlaceholderText: v["muted_solid"],
+        R.Link: v["accent"], R.LinkVisited: v["accent_pressed"],
+        R.Light: v["surface"], R.Midlight: v["surface"], R.Mid: v["divider_solid"],
+        R.Dark: v["divider_solid"], R.Shadow: v["shadow"],
+    }
+    if hasattr(R, "Accent"):
+        roles[R.Accent] = v["accent"]
+    for role, c in roles.items():
+        p.setColor(role, QColor(c))
+    for role in (R.WindowText, R.Text, R.ButtonText):
+        p.setColor(G.Disabled, role, QColor(v["disabled_solid"]))
+    return p
+
+
+# ---- the Theme --------------------------------------------------------------
+
+class Theme(QObject):
+    """theme = Theme.apply(app) — or apply_theme(app), the module-level door."""
+
+    changed = Signal(object)
+
+    def __init__(self, app: QApplication, system: Union[str, Path], mode: str = "auto", *,
+                 cache_dir: Optional[Union[str, Path]] = None):
+        super().__init__(app)
+        self.app = app
+        self._cache_root = Path(cache_dir) if cache_dir else Path(tempfile.gettempdir())
+        self.requested = mode          # what was asked ("auto" follows the OS)
+        self.mode = ""
+        self.vars: Dict[str, str] = {}
+        self._load_system(system)
+        self.set_mode(mode)
+        hints = app.styleHints()
+        if hasattr(hints, "colorSchemeChanged"):
+            hints.colorSchemeChanged.connect(lambda _scheme: self._on_os_scheme())
+
+    # -- construction / system loading --
+
+    @classmethod
+    def apply(cls, app: QApplication, system: Optional[Union[str, Path]] = None,
+              mode: Optional[str] = None, *, persist: bool = False,
+              cache_dir: Optional[Union[str, Path]] = None) -> "Theme":
+        """THE entry point. `system` / `mode` None walk the precedence in
+        `prefs` (args > CJM_THEME > the prefs file > classical:auto). Fusion is
+        pinned once. A second apply re-targets the ONE live Theme instead of
+        minting another; `persist=True` writes the choice."""
+        global _current
+        system, mode, _source = prefs.resolve(None if system is None else str(system), mode)
+        if _current is None or _current.app is not app:
+            # The string overload: Qt creates AND owns the style. Passing a
+            # QStyleFactory.create() temporary hands Python a wrapper it then
+            # frees, leaving the application with a dangling style pointer
+            # (a segfault on the next widget's polish).
+            app.setStyle("Fusion")
+            _current = cls(app, system, mode, cache_dir=cache_dir)
+        else:
+            _current.set_system(system, mode)
+        if persist:
+            prefs.write(_current.system, _current.requested)
+        return _current
+
+    def _load_system(self, system: Union[str, Path]) -> None:
+        root = systems.locate(system)
+        path = root / "tokens.json"
+        tok = T.load(path)
+        T.check(tok, str(path))
+        self.root, self.tokens, self.system = root, tok, T.slug(tok)
+        self.qss_dir = root / "qss" if (root / "qss").is_dir() else systems.BASE_QSS
+        icon_dirs = [root / "icons"] if (root / "icons").is_dir() else []
+        stroke = float((tok.get("icons") or {}).get("stroke_width", T.ICONS_DEFAULTS["stroke_width"]))
+        self.icons = IconSet(icon_dirs, stroke_width=stroke)
+        self.cache = self._cache_root / f"cjm-qt-kit-{self.system}"
+        self.families = self._load_fonts()
+
+    def _load_fonts(self) -> List[str]:
+        """Register the system's vendored font files — each file ONCE per
+        process (a system swap must not re-add fonts the database already
+        holds); name what is missing."""
+        fams: List[str] = []
+        fonts_dir = self.root / "fonts"
+        for pat in self.tokens["fonts"].get("files", ["*.ttf", "*.otf"]):
+            for f in sorted(fonts_dir.glob(pat)):
+                key = str(f.resolve())
+                if key not in _registered_fonts:
+                    fid = QFontDatabase.addApplicationFont(key)
+                    _registered_fonts[key] = (QFontDatabase.applicationFontFamilies(fid)
+                                              if fid >= 0 else [])
+                fams += _registered_fonts[key]
+        f = self.tokens["fonts"]
+        want = {f["heading"]["family"], f["body"]["family"]}
+        want |= {str(f[slot]["family"]) for slot in ("mono", "ui") if f.get(slot, {}).get("family")}
+        missing = want - set(fams) - set(QFontDatabase.families())
+        if missing:
+            print(f"cjm-substrate-qt-kit: {self.system}: fonts not found: {sorted(missing)} "
+                  f"(expected under {fonts_dir})", file=sys.stderr)
+        return fams
+
+    # -- modes --
+
+    @property
+    def modes(self) -> List[str]:
+        return T.modes(self.tokens)
+
+    @property
+    def follows_os(self) -> bool:
+        """True while the requested mode is "auto" AND the system maps the OS scheme."""
+        return self.requested == "auto" and bool(self.tokens.get("scheme"))
+
+    def _os_scheme(self) -> str:
+        hints = self.app.styleHints()
+        scheme = hints.colorScheme() if hasattr(hints, "colorScheme") else None
+        return "light" if scheme == Qt.ColorScheme.Light else "dark"
+
+    def resolve_mode(self, mode: Optional[str]) -> str:
+        """"auto" -> the OS scheme through the system's `scheme` map, else the
+        first mode; a named mode must exist (KeyError names the modes)."""
+        if not mode or mode == "auto":
+            return T.mode_for_scheme(self.tokens, self._os_scheme()) or self.modes[0]
+        if mode not in self.modes:
+            raise KeyError(f"{self.system}: no mode {mode!r} — modes: {self.modes}")
+        return mode
+
+    def set_mode(self, mode: Optional[str] = "auto", *, persist: bool = False) -> None:
+        """Land a mode on the application: font, palette, stylesheet — then
+        the change signal. `persist=True` records the choice."""
+        self.requested = mode or "auto"
+        self.mode = self.resolve_mode(self.requested)
+        self.vars = T.resolve(self.tokens, self.mode)
+        self.app.setFont(make_font(self.vars, "ui"))
+        self.app.setPalette(build_palette(self.vars))
+        self.app.setStyleSheet(render_qss(self.tokens, self.mode, self.icons,
+                                          self.cache / self.mode, self.qss_dir))
+        if persist:
+            prefs.write(self.system, self.requested)
+        self.changed.emit(self)
+        _dispatch(self)
+
+    def set_system(self, system: Union[str, Path], mode: Optional[str] = None, *,
+                   persist: bool = False) -> None:
+        """Swap the design system (fonts, templates, icons) and land `mode` —
+        the requested mode when it exists in the new system, else "auto"."""
+        self._load_system(system)
+        wanted = mode or self.requested
+        if wanted != "auto" and wanted not in self.modes:
+            wanted = "auto"
+        self.set_mode(wanted, persist=persist)
+
+    def toggle(self, *, persist: bool = False) -> None:
+        """Cycle through the system's modes (pins the mode: OS following stops)."""
+        ms = self.modes
+        self.set_mode(ms[(ms.index(self.mode) + 1) % len(ms)], persist=persist)
+
+    def _on_os_scheme(self) -> None:
+        if self.requested == "auto":
+            self.set_mode("auto")
+
+    # -- conveniences --
+
+    def color(self, var: str) -> QColor:
+        return _qcolor(self.vars[var])
+
+    def icon(self, name: str, color_var: str = "text", size: int = 18):
+        return self.icons.icon(name, self.vars[color_var], size, self.vars["disabled_text"])
+
+
+def apply_theme(app: QApplication, system: Optional[Union[str, Path]] = None,
+                mode: Optional[str] = None, *, persist: bool = False) -> Theme:
+    """Module-level door to Theme.apply (the name every app's launch calls)."""
+    return Theme.apply(app, system, mode, persist=persist)
+
+
+# ---- typography + painters over the live vars ------------------------------
+
+def make_font(theme: Optional[Dict[str, str]] = None, kind: str = "body") -> QFont:
+    """The system's font for a slot: "body" / "mono" / "ui" / "heading",
+    pixel-sized from the tokens. An empty mono family means the platform's
+    fixed font."""
+    v = theme if theme is not None else current_theme()
     font = QFont()
-    family = str(t.get("font-" + kind + "-family") or "")
+    family = str(v.get(f"font_{kind}") or "")
     if family:
         font.setFamily(family)
     elif kind == "mono":
         font.setStyleHint(QFont.StyleHint.Monospace)
         font.setFamily("monospace")
-    font.setPointSizeF(float(t.get("font-" + kind + "-size") or 11.0))
-    if kind == "body":
-        font.setWeight(QFont.Weight(int(t.get("font-body-weight") or 400)))
+    size = v.get("fs_title" if kind == "heading" else f"fs_{kind}") or v["fs_body"]
+    font.setPixelSize(max(1, int(round(float(size)))))
+    if kind == "heading":
+        font.setWeight(QFont.Weight(int(v.get("heading_weight") or 600)))
+    elif kind == "body":
+        font.setWeight(QFont.Weight(int(v.get("body_weight") or 400)))
     return font
 
 
-def build_palette(theme: dict) -> QPalette:
-    """Project the palette roles onto QPalette so NATIVE widgets follow the
-    theme (QSS covers the styled subset; the palette covers the rest)."""
-    def color(key: str) -> QColor:
-        return QColor(theme[key])
-    p = QPalette()
-    p.setColor(QPalette.ColorRole.Window, color("base"))
-    p.setColor(QPalette.ColorRole.WindowText, color("content"))
-    p.setColor(QPalette.ColorRole.Base, color("surface"))
-    p.setColor(QPalette.ColorRole.AlternateBase, color("raised"))
-    p.setColor(QPalette.ColorRole.Text, color("content"))
-    p.setColor(QPalette.ColorRole.PlaceholderText, color("content-dim"))
-    p.setColor(QPalette.ColorRole.Button, color("raised"))
-    p.setColor(QPalette.ColorRole.ButtonText, color("content"))
-    p.setColor(QPalette.ColorRole.Highlight, color("selection-bg"))
-    p.setColor(QPalette.ColorRole.HighlightedText, color("selection-content"))
-    p.setColor(QPalette.ColorRole.Link, color("accent"))
-    p.setColor(QPalette.ColorRole.ToolTipBase, color("raised"))
-    p.setColor(QPalette.ColorRole.ToolTipText, color("content"))
-    for role in (QPalette.ColorRole.WindowText, QPalette.ColorRole.Text,
-                 QPalette.ColorRole.ButtonText):
-        p.setColor(QPalette.ColorGroup.Disabled, role, color("content-dim"))
-    return p
+def state_color(word: str, theme: Optional[Dict[str, str]] = None) -> Optional[QColor]:
+    """A state role (danger / warn / ok / info / meta / note / dim / accent)
+    or a legacy Rich word -> the theme's color; None for words with no color
+    binding ("bold") and for any non-color var (a font name never leaks)."""
+    v = theme if theme is not None else current_theme()
+    key = WORD_ROLES.get(word, word)
+    if key in T.STATE_ROLES or key in ("dim", "accent", "text", "muted_solid"):
+        value = v.get(key)
+        return _qcolor(value) if isinstance(value, str) and value.startswith(("#", "rgba(")) else None
+    return None
 
 
-def build_qss(theme: dict) -> str:
-    """Generate the lane's QSS layer: chrome polish + dynamic-property state
-    channels — a widget declares setProperty("role", "danger") and the
-    stylesheet colors it (state rendered declaratively, per-widget)."""
-    t = theme
-    states = "\n".join('*[role="%s"] { color: %s; }' % (role, t[role])
-                       for role in ("danger", "warn", "ok", "info", "meta",
-                                    "note", "content-dim", "accent"))
-    return (
-        f"QListWidget {{ background: {t['surface']}; border: 1px solid {t['border']}; }}\n"
-        f"QListWidget::item {{ padding: 2px 6px; }}\n"
-        f"QListWidget::item:selected {{ background: {t['selection-bg']}; color: {t['selection-content']}; }}\n"
-        f"QTextEdit, QPlainTextEdit, QTextBrowser {{ background: {t['surface']}; "
-        f"border: 1px solid {t['border']}; "
-        f"selection-background-color: {t['selection-bg']}; "
-        f"selection-color: {t['selection-content']}; }}\n"
-        f"QLineEdit {{ background: {t['raised']}; border: 1px solid {t['border']}; padding: 2px 4px; }}\n"
-        f"QToolTip {{ background: {t['raised']}; color: {t['content']}; border: 1px solid {t['border']}; }}\n"
-        f"QSplitter::handle {{ background: {t['border']}; }}\n"
-        f"QStatusBar {{ color: {t['content-dim']}; }}\n"
-        + states + "\n")
-
-
-def document_css(theme: Optional[dict] = None) -> str:
-    """Default stylesheet for rich-text documents (setDefaultStyleSheet):
-    heading sizes walk heading-scale down to body size, links take accent."""
-    t = theme if theme is not None else current_theme()
-    body = float(t.get("font-body-size") or 12.0)
-    scale = float(t.get("heading-scale") or 1.2)
-    rules = [f"a {{ color: {t['accent']}; }}"]
+def document_css(theme: Optional[Dict[str, str]] = None) -> str:
+    """Default stylesheet for rich-text documents: headings from the type
+    scale in the heading face, links in accent, code in the mono slot."""
+    v = theme if theme is not None else current_theme()
+    rules = [f"a {{ color: {v['accent']}; }}"]
     for level in (1, 2, 3, 4):
-        rules.append(f"h{level} {{ font-size: {round(body * scale ** (4 - level), 1)}pt; }}")
+        rules.append(f"h{level} {{ font-family: '{v['font_heading']}'; font-size: {v[f'fs_h{level}']}px; "
+                     f"font-weight: {v[f'fw_h{level}']}; }}")
+    if v.get("font_mono"):
+        rules.append(f"code, pre {{ font-family: '{v['font_mono']}'; font-size: {v['fs_mono']}px; }}")
     return "\n".join(rules)
 
 
-def style_text_pane(pane: QWidget, theme: Optional[dict] = None,
+def style_text_pane(pane: QWidget, theme: Optional[Dict[str, str]] = None,
                     mono: bool = False, measure: bool = True,
                     live: bool = False) -> None:
     """Reading-quality setup for a text pane (QTextEdit / QTextBrowser /
@@ -184,16 +365,16 @@ def style_text_pane(pane: QWidget, theme: Optional[dict] = None,
     line-height applied across content swaps by re-merging on textChanged
     (recursion-guarded; meant for read-only panes, not editors — every merge
     is an undoable edit)."""
-    t = theme if theme is not None else current_theme()
-    font = make_font(t, "mono" if mono else "body")
+    v = theme if theme is not None else current_theme()
+    font = make_font(v, "mono" if mono else "body")
     pane.setFont(font)
     doc = pane.document()
     doc.setDocumentMargin(12.0)
-    doc.setDefaultStyleSheet(document_css(t))
-    height = float(t.get("font-body-line-height") or 1.0) * 100.0
+    doc.setDefaultStyleSheet(document_css(v))
+    height = float(v.get("line_height") or 1.0) * 100.0
     _merge_line_height(pane, height)
-    if measure and t.get("measure") and isinstance(pane, QTextEdit):
-        width = QFontMetrics(font).averageCharWidth() * int(t["measure"])
+    if measure and int(float(v.get("measure") or 0)) and isinstance(pane, QTextEdit):
+        width = QFontMetrics(font).averageCharWidth() * int(float(v["measure"]))
         pane.setLineWrapMode(QTextEdit.LineWrapMode.FixedPixelWidth)
         pane.setLineWrapColumnOrWidth(width + 2 * int(doc.documentMargin()))
     if live:
@@ -202,30 +383,6 @@ def style_text_pane(pane: QWidget, theme: Optional[dict] = None,
         if first_wire:
             pane.textChanged.connect(
                 lambda: _merge_line_height(pane, pane._kit_live_height))
-
-
-def _on_scheme_change() -> None:
-    """Re-apply on OS scheme flips — only while the scheme is not pinned."""
-    app = QApplication.instance()
-    if app is not None and _live["pinned"] is None:
-        apply_theme(app, _live["overrides"])
-
-
-def apply_theme(app: QApplication, overrides: Optional[dict] = None,
-                scheme: Optional[str] = None) -> dict:
-    """THE entry point: resolve the theme and land palette + QSS + ui font on
-    the whole application. scheme None = follow the OS live (re-applies on
-    colorSchemeChanged); an explicit "light"/"dark" pins the member."""
-    theme = resolve_theme(overrides, scheme)
-    _live.update(theme=theme, overrides=overrides, pinned=scheme)
-    app.setPalette(build_palette(theme))
-    app.setStyleSheet(build_qss(theme))
-    app.setFont(make_font(theme, "ui"))
-    hints = app.styleHints()
-    if not _live["connected"] and hasattr(hints, "colorSchemeChanged"):
-        hints.colorSchemeChanged.connect(lambda _scheme: _on_scheme_change())
-        _live["connected"] = True
-    return theme
 
 
 def _merge_line_height(pane: QWidget, height: float) -> None:
@@ -243,3 +400,11 @@ def _merge_line_height(pane: QWidget, height: float) -> None:
         cursor.mergeBlockFormat(fmt)
     finally:
         pane._kit_height_busy = False
+
+
+def _qcolor(c: str) -> QColor:
+    """A resolved var -> QColor ("#rrggbb" or "rgba(r, g, b, 0-255)")."""
+    if c.startswith("rgba("):
+        r, g, b, a = [int(x) for x in c[5:-1].split(",")]
+        return QColor(r, g, b, a)
+    return QColor(c)
