@@ -13,6 +13,8 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import QApplication, QLineEdit, QPlainTextEdit, QTextEdit
 
+from .keys import enter_twins
+
 
 class KeymapRegistry:
     """Declarative verb table -> live QActions on an owner widget."""
@@ -27,10 +29,12 @@ class KeymapRegistry:
             group: str = "") -> QAction:
         """Register one verb: a labelled QAction with its default binding,
         added to the owner so the shortcut fires window-wide. group names
-        the verb's section in discovery surfaces (the keyhints overlay)."""
+        the verb's section in discovery surfaces (the keyhints overlay,
+        the shell's derived menus). A Return binding also answers the
+        numpad Enter key (the shell's keyboard contract, ruling 2bae2cc1)."""
         action = QAction(label, self.owner)
         if key:
-            action.setShortcut(QKeySequence(key))
+            action.setShortcuts([QKeySequence(k) for k in enter_twins(key)])
         action.setShortcutContext(context)
         action.triggered.connect(lambda _checked=False: fn())
         self.owner.addAction(action)
@@ -42,10 +46,23 @@ class KeymapRegistry:
     def action(self, verb: str) -> QAction:
         return self._actions[verb]
 
+    def has(self, verb: str) -> bool:
+        return verb in self._actions
+
     def rebind(self, verb: str, key: str) -> None:
-        """Retune a verb's binding in place (the future keybinding UI's verb)."""
-        self._actions[verb].setShortcut(QKeySequence(key))
+        """Retune a verb's binding in place (the future keybinding UI's verb);
+        the numpad twin of a Return binding follows."""
+        self._actions[verb].setShortcuts([QKeySequence(k) for k in enter_twins(key)])
         self._meta[verb]["key"] = key
+
+    def groups(self) -> List[str]:
+        """Every group in first-seen declaration order ("" for ungrouped) —
+        the shell derives one menu per group from this."""
+        seen: List[str] = []
+        for m in self._meta.values():
+            if m["group"] not in seen:
+                seen.append(m["group"])
+        return seen
 
     def entries(self) -> List[dict]:
         """The discovery surface: [{verb, label, key, group}] in declaration

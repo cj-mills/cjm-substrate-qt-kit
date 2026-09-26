@@ -88,8 +88,10 @@ class FindBar(QWidget):
             self._step(backward=False, stay_on_origin=True)
 
     def attach(self, pane) -> None:
-        """Point the bar at a (possibly different) pane; clears old paint."""
-        if self.pane is not None and self.pane is not pane:
+        """Point the bar at a (possibly different) pane; clears old paint. A
+        previous pane whose C++ half is gone (a closed reading view) is
+        dropped, not touched."""
+        if self.pane is not None and self.pane is not pane and shiboken6.isValid(self.pane):
             self.pane.setExtraSelections([])
         self.pane = pane
 
@@ -98,7 +100,7 @@ class FindBar(QWidget):
         new pane's position as the origin, re-run the live search there. Bar
         chrome (the field, buttons) and non-text widgets never steal the
         attachment."""
-        if not self.isVisible() or new is None or new is self.pane:
+        if not shiboken6.isValid(self) or not self.isVisible() or new is None or new is self.pane:
             return
         if not (hasattr(new, "find") and hasattr(new, "setExtraSelections")
                 and hasattr(new, "textCursor")):

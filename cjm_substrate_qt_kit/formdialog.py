@@ -22,16 +22,18 @@ keyboard-search on letter presses) and what rows/cursor/activation mean."""
 from typing import Any, Callable, Optional
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QDialog, QLabel, QLineEdit, QTextBrowser, QVBoxLayout
+from PySide6.QtWidgets import QLabel, QLineEdit, QTextBrowser
 
 from .keyhints import is_close_anchor, modal_bounds, modal_header, open_centered
+from .modal import ModalFrame
 from .pickerlist import PickerList
 from .theme import current_theme, on_change
 
 
-class FormShell(QDialog):
-    """Frameless modal shell: head (QTextBrowser, fixed) / body (PickerList,
-    scrolls) / editor (QLineEdit, transient) / foot (QLabel, fixed).
+class FormShell(ModalFrame):
+    """Frameless modal shell on the kit modal frame: head (QTextBrowser,
+    fixed) / body (PickerList, scrolls) / editor (QLineEdit, transient) /
+    foot (QLabel, fixed).
 
     set_header()/set_footer() repaint the chrome; open_sized() sizes to the
     rendered rows and opens centered over the owner; open_editor()/
@@ -41,31 +43,27 @@ class FormShell(QDialog):
     def __init__(self, parent, *,
                  on_cursor: Optional[Callable[[int], None]] = None,
                  on_activate: Optional[Callable[[Any], None]] = None):
-        super().__init__(parent, Qt.WindowType.FramelessWindowHint)
-        self.setModal(True)
-        self.head = QTextBrowser(self)
+        super().__init__(parent)
+        self.head = QTextBrowser(self.frame)
         self.head.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.head.setOpenLinks(False)
         self.head.anchorClicked.connect(self._on_anchor)
         self.head.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.head.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.body = PickerList(self, on_cursor=on_cursor,
+        self.body = PickerList(self.frame, on_cursor=on_cursor,
                                on_activate=on_activate)
-        self.editor = QLineEdit(self)
+        self.editor = QLineEdit(self.frame)
         self.editor.setVisible(False)
-        self.foot = QLabel(self)
+        self.foot = QLabel(self.frame)
         self.foot.setTextFormat(Qt.TextFormat.RichText)
         self.foot.setWordWrap(True)
         self.foot.setProperty("role", "dim")
         self.foot.setContentsMargins(6, 4, 6, 4)
         self._title_html = ""
-        lay = QVBoxLayout(self)
-        lay.setContentsMargins(1, 1, 1, 1)
-        lay.setSpacing(0)
-        lay.addWidget(self.head)
-        lay.addWidget(self.body, 1)
-        lay.addWidget(self.editor)
-        lay.addWidget(self.foot)
+        self.inner.addWidget(self.head)
+        self.inner.addWidget(self.body, 1)
+        self.inner.addWidget(self.editor)
+        self.inner.addWidget(self.foot)
         on_change(self._on_theme)
 
     # ---- chrome ----------------------------------------------------------

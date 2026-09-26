@@ -11,14 +11,16 @@ carries the PIN gesture: pinned verbs project into the contextual hint
 line (hint_line()), so the overlay is the hint-line customization
 surface — and the seat the future remapping UI extends. It is a modal
 frameless dialog so the owning window's bare-letter shortcuts cannot
-fire underneath it."""
+fire underneath it — on the kit modal frame (modal.ModalFrame, ruling
+d1e3043e), so the system's radius reaches its window."""
 
 from typing import Callable, Dict, List, Optional, Tuple
 
 from cjm_substrate_qt_kit.layout import afford
+from cjm_substrate_qt_kit.modal import modal_bounds, ModalFrame, open_centered
 from cjm_substrate_qt_kit.theme import current_theme, on_change
-from PySide6.QtCore import Qt, QUrl
-from PySide6.QtWidgets import QDialog, QTextBrowser, QVBoxLayout, QWidget
+from PySide6.QtCore import QUrl
+from PySide6.QtWidgets import QTextBrowser, QWidget
 
 Entry = Dict[str, str]
 
@@ -110,27 +112,24 @@ def render_hints_html(entries: List[Entry], pins: List[str], columns: int,
             % ("".join(columns_html), dim))
 
 
-class KeyHintsOverlay(QDialog):
-    """?-toggled keyboard-hints overlay. Modal + frameless, centered over
-    the owner window, sized to the afforded column count at open time.
-    Clicking a row's pin glyph toggles that verb into the hint line and
-    reports the new pin set through on_pins_changed (the app persists it —
-    the kit holds no store)."""
+class KeyHintsOverlay(ModalFrame):
+    """?-toggled keyboard-hints overlay. Modal + frameless on the kit modal
+    frame, centered over the owner window, sized to the afforded column
+    count at open time. Clicking a row's pin glyph toggles that verb into
+    the hint line and reports the new pin set through on_pins_changed (the
+    app persists it — the kit holds no store)."""
 
     def __init__(self, parent: QWidget, entries: Optional[List[Entry]] = None,
                  pins: Optional[List[str]] = None,
                  on_pins_changed: Optional[Callable[[List[str]], None]] = None):
-        super().__init__(parent, Qt.WindowType.FramelessWindowHint)
-        self.setModal(True)
+        super().__init__(parent)
         self._entries: List[Entry] = list(entries or [])
         self.pins: List[str] = list(pins or [])
         self._on_pins_changed = on_pins_changed
-        self.view = QTextBrowser(self)
+        self.view = QTextBrowser(self.frame)
         self.view.setOpenLinks(False)
         self.view.anchorClicked.connect(self._on_anchor)
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(1, 1, 1, 1)
-        layout.addWidget(self.view)
+        self.inner.addWidget(self.view)
         on_change(self._on_theme)
 
     def _on_theme(self, _theme) -> None:
@@ -233,33 +232,3 @@ def is_close_anchor(url: QUrl) -> bool:
     """True for the close affordance modal_header paints — the dialog's
     anchorClicked slot closes on it and routes everything else on."""
     return url.toString() == "close:"
-
-
-def modal_bounds(dialog: QWidget) -> Tuple[int, int]:
-    """(avail_w, avail_h) a kit modal may occupy: the owner's size less a
-    64 px margin on each axis, or a 960x640 fallback when ownerless (tests,
-    detached probes). Callers size their content against these bounds and
-    hand the result to open_centered, which caps again by the same rule."""
-    owner = dialog.parentWidget()
-    if owner is None:
-        return 960, 640
-    return owner.width() - 64, owner.height() - 64
-
-
-def open_centered(dialog: QDialog, width: int, height: int,
-                  focus: Optional[QWidget] = None) -> None:
-    """Open a kit modal centered over its owner at (width, height) capped by
-    modal_bounds — the ONE sizing/centering path; the ?-overlay and the
-    FormShell carried it separately until the kit charter's housekeeping
-    (ruling 8b7351e4). QDialog.open is non-blocking, but the owner's
-    shortcuts stay inert underneath; `focus` (default: the dialog itself)
-    takes the keyboard."""
-    avail_w, avail_h = modal_bounds(dialog)
-    dialog.resize(min(avail_w, width), min(avail_h, height))
-    owner = dialog.parentWidget()
-    if owner is not None:
-        center = owner.mapToGlobal(owner.rect().center())
-        dialog.move(center.x() - dialog.width() // 2,
-                    center.y() - dialog.height() // 2)
-    dialog.open()
-    (focus if focus is not None else dialog).setFocus()

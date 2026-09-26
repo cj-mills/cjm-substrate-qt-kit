@@ -105,3 +105,20 @@ QPushButton[variant="seg"] { font-family: "$font_body"; font-weight: 400; font-s
 QPushButton[variant="seg"][pos="mid"], QPushButton[variant="seg"][pos="last"] { border-left: 1px solid $divider; }
 QPushButton[variant="seg"]:checked { color: $accent; border: 1px solid $accent; }
 QPushButton[variant="seg"]:checked:hover { background: transparent; }
+
+/* the shell frame (ruling d1e3043e): the window's own chrome, painted from the tokens.
+   The frame is the child of a translucent host; corners beyond the radius stay transparent.
+   The border is a SOLID mix: an rgba border on a translucent host has nothing behind it. */
+QFrame[kitFrame="true"] { background: $bg; border: 1px solid $divider_strong_solid; border-radius: ${radius_lg}px; }
+QFrame[kitFrame="true"][kitMaximized="true"], QFrame[kitFrame="true"][chrome="system"] { border: none; border-radius: 0; }
+QFrame[role="titlebar"] { background: transparent; border: none; border-bottom: 1px solid $divider; min-height: 34px; }
+QLabel[role="window-title"] { font-family: "$font_heading"; font-weight: $heading_weight; font-size: ${fs_title}px; color: $text; background: transparent; }
+QToolButton[role="window-verb"] { border: 1px solid transparent; border-radius: ${radius_sm}px; padding: 4px; min-width: 22px; min-height: 22px; background: transparent; }
+QToolButton[role="window-verb"]:hover { background: $text_hover; }
+QToolButton[role="window-verb"]:pressed { background: $text_pressed; }
+QToolButton[role="window-verb"][verb="close"]:hover { background: $danger; }
+
+/* the kit modal frame (the same rule for every dialog: overlay, form shell, prompts) */
+QFrame[kitModal="true"] { background: $surface; border: 1px solid $divider_strong_solid; border-radius: ${radius_lg}px; }
+QFrame[role="modal-header"] { background: transparent; border: none; border-bottom: 1px solid $divider; }
+QLabel[role="modal-title"] { font-family: "$font_heading"; font-weight: $heading_weight; font-size: ${fs_h4}px; color: $text; background: transparent; }

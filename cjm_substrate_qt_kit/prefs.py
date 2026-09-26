@@ -9,8 +9,13 @@ user's config dir. Precedence at apply time, highest first:
     >  the preferences file  >  classical:auto
 
 `auto` means: follow the OS scheme through the system's `scheme` map, or the
-system's first mode when it declares none. The file is the one thing the
-in-app switcher will write once the shell lands; nothing else persists here."""
+system's first mode when it declares none. The file is what the shell's
+in-app switcher writes (a9ba662e); the DECORATIONS choice rides beside it
+(ruling d1e3043e): "client" = the shell paints the title bar and the frame
+from the tokens (the default), "system" = the window manager's decorations
+with the mode hinted to it (the fallback for tiling window managers,
+accessibility, remote displays). Precedence: explicit > CJM_DECORATIONS >
+the file > client."""
 
 import json
 import os
@@ -21,6 +26,10 @@ DEFAULT_SYSTEM = "classical"
 DEFAULT_MODE = "auto"
 ENV_VAR = "CJM_THEME"
 PREFS_ENV = "CJM_KIT_PREFS"   # override the file location (tests, portable installs)
+DECORATIONS_ENV = "CJM_DECORATIONS"
+DECORATIONS = ("client", "system")
+DEFAULT_DECORATIONS = "client"
+_KEYS = ("system", "mode", "decorations")
 
 
 def prefs_path() -> Path:
@@ -38,24 +47,52 @@ def prefs_path() -> Path:
 
 
 def read() -> Dict[str, str]:
-    """The stored choice ({"system", "mode"}) — an empty dict when absent or unreadable."""
+    """The stored choices ({"system", "mode", "decorations"} — whichever are
+    present) — an empty dict when absent or unreadable."""
     try:
         data = json.loads(prefs_path().read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {}
     if not isinstance(data, dict):
         return {}
-    return {k: str(v) for k, v in data.items() if k in ("system", "mode") and isinstance(v, str)}
+    return {k: str(v) for k, v in data.items() if k in _KEYS and isinstance(v, str)}
 
 
-def write(system: str, mode: str) -> Path:
-    """Persist the choice (atomic replace); returns the file written."""
+def _write_all(data: Dict[str, str]) -> Path:
     path = prefs_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(".json.tmp")
-    tmp.write_text(json.dumps({"system": system, "mode": mode}, indent=2) + "\n", encoding="utf-8")
+    tmp.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
     os.replace(tmp, path)
     return path
+
+
+def write(system: str, mode: str) -> Path:
+    """Persist the theme choice (atomic replace, the other keys kept);
+    returns the file written."""
+    data = read()
+    data.update({"system": system, "mode": mode})
+    return _write_all(data)
+
+
+def write_decorations(value: str) -> Path:
+    """Persist the decorations choice ("client" / "system"), the theme keys kept."""
+    if value not in DECORATIONS:
+        raise ValueError(f"decorations: expected one of {DECORATIONS}, got {value!r}")
+    data = read()
+    data["decorations"] = value
+    return _write_all(data)
+
+
+def decorations(explicit: Optional[str] = None) -> Tuple[str, str]:
+    """(decorations, source) after the precedence walk: explicit >
+    CJM_DECORATIONS > the file > "client". An unknown value at any rung is
+    skipped (never a crash at launch for a typo in the environment)."""
+    for value, source in ((explicit, "args"), (os.environ.get(DECORATIONS_ENV), "env"),
+                          (read().get("decorations"), "prefs")):
+        if value and value in DECORATIONS:
+            return value, source
+    return DEFAULT_DECORATIONS, "default"
 
 
 def parse_env(value: Optional[str]) -> Tuple[Optional[str], Optional[str]]:

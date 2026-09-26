@@ -5,13 +5,13 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "cjm-substrate-qt-kit"
 dynamic = ["version"]
-description = "The ONE Qt foundation library for the cjm-substrate application lane (ruling 8b7351e4): the design-system runtime (a design system as data — token schema v1, Classical + Netrunner vendored — resolved by ONE Theme into fonts + QPalette + QSS + Lucide icons with ONE change signal), the app shell, and the chrome every app shares — loop-thread session base, KeymapRegistry, key hints, status strip, find bar, picker list, form shell + config-form model, HITL panel, span player, text clamps. Requires ffmpeg on PATH for span playback. Born on-graph."
+description = "The ONE Qt foundation library for the cjm-substrate application lane (ruling 8b7351e4): the design-system runtime (a design system as data — token schema v1, Classical + Netrunner vendored — resolved by ONE Theme into fonts + QPalette + QSS + Lucide icons with ONE change signal), the APP SHELL (rulings 2bae2cc1 + d1e3043e: the window frame with client-side decorations painted from the tokens, the kit modal frame, menus derived from the keymap, the job seat, the Future -> Signal bridge, launch resolution, session-key adoption + the one mint), and the chrome every app shares — loop-thread session base, KeymapRegistry, key hints, status strip, find bar, reading pane, picker list, form shell + config-form model, HITL panel, span player, text clamps. Requires ffmpeg on PATH for span playback. Born on-graph."
 readme = "README.md"
 requires-python = ">=3.12"
 license = {text = "Apache-2.0"}
 authors = [{name = "Christian J. Mills", email = "9126128+cj-mills@users.noreply.github.com"}]
 classifiers = ["Programming Language :: Python :: 3", "Programming Language :: Python :: 3 :: Only"]
-dependencies = ['PySide6']
+dependencies = ['PySide6', 'cjm-harness-transcripts>=0.0.2']
 
 [project.urls]
 Repository = "https://github.com/cj-mills/cjm-substrate-qt-kit"

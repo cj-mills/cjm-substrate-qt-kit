@@ -17,3 +17,10 @@
 QSplitter::handle { background: $divider_solid; }
 QSplitter::handle:horizontal { width: 1px; }
 QSplitter::handle:vertical { height: 1px; }
+
+/* the shell's translucent HOSTS (ruling d1e3043e): a frameless top-level
+   paints nothing of its own — the painted frame is its child (frame.py /
+   modal.py); the systems style QFrame[kitFrame] / QFrame[kitModal]. */
+QMainWindow[kitShell="true"] { background: transparent; }
+QDialog[kitModalHost="true"] { background: transparent; border: none; }
+QFrame[kitModal="true"] QTextBrowser, QFrame[kitModal="true"] QListWidget { background: transparent; border: none; }

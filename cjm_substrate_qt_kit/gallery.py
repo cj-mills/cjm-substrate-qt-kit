@@ -1,30 +1,37 @@
 """The gallery SEED: every component class under any design system + mode
 (ruling abb6360d — the gallery is the acceptance surface; this is the
 handoff bundle's demo ported as the kit gallery's first form, the full
-gallery is work item f12ed444).
+gallery is work item f12ed444). The gallery window is itself a SHELL
+INSTANCE (ruling 2bae2cc1 / d1e3043e): its frame, title bar, menus (derived
+from its keymap + the Theme menu), status strip and job seat are the
+shell's — so the window IS the frame demo.
 
     python -m cjm_substrate_qt_kit.gallery [--system classical|netrunner|<path>] [--mode <mode>]
+                                           [--decorations client|system]
 
 Tabs: Controls / Data / Cards (the shared component classes), Kit (the kit's
 own chrome — picker list, verdict strip, provenance, status strip — proving
-restyle-on-signal), and a system's own page when its package defines
-`gallery_page(theme)` (Netrunner's panels). The View menu switches system
-and mode live; the choice persists through `prefs` when --persist is given."""
+restyle-on-signal), Shell (the modal frame, the prompts, the job seat, the
+decorations toggle), and a system's own page when its package defines
+`gallery_page(theme)` (Netrunner's panels). The Theme menu switches system,
+mode and decorations live; every choice persists through `prefs`."""
 
 import argparse
 import sys
+import time
+from concurrent.futures import ThreadPoolExecutor
 from typing import Optional
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QAction, QActionGroup, QStandardItem, QStandardItemModel
-from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog, QDialogButtonBox,
-                               QGridLayout, QHBoxLayout, QLineEdit, QMainWindow, QProgressBar,
-                               QRadioButton, QScrollArea, QSlider, QSpinBox, QTableWidget,
-                               QTableWidgetItem, QTabWidget, QTextEdit, QTreeView, QVBoxLayout,
-                               QWidget)
+from PySide6.QtGui import QAction, QStandardItem, QStandardItemModel
+from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QGridLayout, QHBoxLayout,
+                               QLineEdit, QProgressBar, QRadioButton, QScrollArea, QSlider,
+                               QSpinBox, QTableWidget, QTableWidgetItem, QTabWidget, QTextEdit,
+                               QToolBar, QTreeView, QVBoxLayout, QWidget)
 
-from . import systems
 from .hitl import HitlPanel
+from .modal import Confirm
+from .shell import AppShell
 from .statusstrip import StatusStrip
 from .theme import apply_theme, on_change, Theme
 from .widgets import button, Card, hr, Segmented, tag, text
@@ -59,74 +66,51 @@ def field(label: str, w: QWidget) -> QVBoxLayout:
     return v
 
 
-class Gallery(QMainWindow):
-    def __init__(self, theme: Theme, persist: bool = False):
-        super().__init__()
+class Gallery(AppShell):
+    def __init__(self, theme: Theme, decorations: Optional[str] = None):
+        super().__init__("kit gallery", seat="gallery", decorations=decorations)
         self.theme = theme
-        self.persist = persist
         self.resize(1120, 780)
-        self.tabs = QTabWidget()
+        self._pool: Optional[ThreadPoolExecutor] = None
+        self.tabs = QTabWidget(self.frame)
         self.tabs.setDocumentMode(True)
         self.tabs.addTab(self._scroll(self._controls()), "Controls")
         self.tabs.addTab(self._scroll(self._data()), "Data")
         self.tabs.addTab(self._scroll(self._cards()), "Cards")
         self.tabs.addTab(self._scroll(self._kit()), "Kit")
+        self.tabs.addTab(self._scroll(self._shell()), "Shell")
         self._system_tab: Optional[int] = None
-        self.setCentralWidget(self.tabs)
-        self._menus()
+        self.add_stage("gallery", self.tabs)
+        self._chrome()
         on_change(self._on_theme)
         self._on_theme(theme)
 
     # chrome
-    def _menus(self):
-        mb = self.menuBar()
-        f = mb.addMenu("&File")
+    def _chrome(self):
+        add = self.keymap.add
         self.acts = {}
-        for name, icon in [("New", "file-text"), ("Open…", "folder-open"), ("Save", "save")]:
-            self.acts[name] = (f.addAction(name), icon)
-        f.addSeparator()
-        f.addAction("Quit", self.close)
-        v = mb.addMenu("&View")
-        self.system_menu = v.addMenu("Design system")
-        self.system_group = QActionGroup(self)
-        for slug in systems.available():
-            act = QAction(slug, self, checkable=True)
-            act.triggered.connect(lambda _c=False, s=slug: self.theme.set_system(s, persist=self.persist))
-            self.system_group.addAction(act)
-            self.system_menu.addAction(act)
-        self.mode_menu = v.addMenu("Mode")
-        v.addAction("Next mode", self.theme.toggle)
-        mb.addMenu("&Help").addAction("About", self._dialog)
-        tb = self.addToolBar("Main")
+        for verb, label, key, icon in (("new", "New", "Ctrl+N", "file-text"),
+                                       ("open", "Open…", "Ctrl+O", "folder-open"),
+                                       ("save", "Save", "Ctrl+S", "save")):
+            self.acts[verb] = (add(verb, label, key, lambda v=verb: self.strip.set_readout(f"{v}: a demo verb"),
+                                   group="File"), icon)
+        add("quit", "Quit", "Ctrl+Q", self.close, group="File")
+        add("dialog", "Open a dialog", "Ctrl+D", self._dialog, group="Shell")
+        add("prompt", "Ask for text", "Ctrl+T", self._prompt, group="Shell")
+        add("job", "Run a 3 s job", "Ctrl+J", self._job, group="Shell")
+        add("decorations", "Toggle decorations", "Ctrl+Shift+D", self._toggle_decorations, group="Shell")
+        self.finish_keys()
+        tb = QToolBar("Main", self.frame)
         tb.setMovable(False)
-        for name in ("New", "Open…", "Save"):
-            tb.addAction(self.acts[name][0])
+        for verb in ("new", "open", "save"):
+            tb.addAction(self.acts[verb][0])
         tb.addSeparator()
-        self.mode_act = QAction("Mode", self, triggered=self.theme.toggle)
+        self.mode_act = QAction("Mode", self, triggered=self.next_mode)
         tb.addAction(self.mode_act)
-
-    def _rebuild_mode_menu(self, t: Theme):
-        self.mode_menu.clear()
-        group = QActionGroup(self)
-        auto = QAction("auto (follow the OS)", self, checkable=True)
-        auto.setEnabled(bool(t.tokens.get("scheme")))
-        auto.setChecked(t.requested == "auto")
-        auto.triggered.connect(lambda _c=False: self.theme.set_mode("auto", persist=self.persist))
-        group.addAction(auto)
-        self.mode_menu.addAction(auto)
-        self.mode_menu.addSeparator()
-        for m in t.modes:
-            act = QAction(m, self, checkable=True)
-            act.setChecked(t.requested != "auto" and m == t.mode)
-            act.triggered.connect(lambda _c=False, mm=m: self.theme.set_mode(mm, persist=self.persist))
-            group.addAction(act)
-            self.mode_menu.addAction(act)
+        self.frame.chrome.addWidget(tb)
 
     def _on_theme(self, t: Theme):
         self.setWindowTitle(f"{t.vars['name']} · {t.mode} — kit gallery")
-        for act in self.system_group.actions():
-            act.setChecked(act.text() == t.system)
-        self._rebuild_mode_menu(t)
         for act, icon in self.acts.values():
             act.setIcon(t.icon(icon))
         self.mode_act.setIcon(t.icon("sun" if t.mode == "dark" else "moon"))
@@ -139,6 +123,8 @@ class Gallery(QMainWindow):
         if page is not None:
             self._system_tab = self.tabs.addTab(self._scroll(page), t.vars["name"])
         self.strip.set_chip("system", f"{t.system}:{t.mode}")
+        self.strip.set_chip("decorations", self.decorations)
+        self.strip.set_hints("Ctrl+D dialog · Ctrl+T prompt · Ctrl+J job · Ctrl+Shift+M mode · ? keys")
 
     def _scroll(self, w: QWidget) -> QScrollArea:
         s = QScrollArea()
@@ -279,30 +265,61 @@ class Gallery(QMainWindow):
         self.hitl.provenance.set_entries([("set", "ps-2026-09-25"), ("proposer", "model:qwen3"),
                                           ("window", "0–3600 s")])
         v.addWidget(section("HITL panel (picker list · verdict strip · provenance)", self.hitl))
-        self.strip = StatusStrip()
-        self.strip.set_chip("source", "Show 62 · 4466 segments")
-        self.strip.set_readout("accepted 3 proposals", role="ok")
-        self.strip.set_hints("j/k move · enter accept · ? keys")
-        v.addWidget(section("Status strip", self.strip))
+        demo_strip = StatusStrip()
+        demo_strip.set_chip("source", "Show 62 · 4466 segments")
+        demo_strip.set_readout("accepted 3 proposals", role="ok")
+        demo_strip.set_hints("j/k move · enter accept · ? keys")
+        v.addWidget(section("Status strip (a second instance; the window's own is below)", demo_strip))
         v.addStretch(1)
         return page
 
+    def _shell(self) -> QWidget:
+        """The shell surfaces (rulings 2bae2cc1 + d1e3043e): the window is the
+        frame demo; the buttons open the kit modal frame's dialogs, put a job
+        in the seat and flip the decorations fallback."""
+        page = QWidget()
+        v = QVBoxLayout(page)
+        v.setSpacing(28)
+        v.addWidget(text("Shell", "h2"))
+        v.addWidget(text("This window is the frame: drag the title bar, double-click it to maximize, "
+                         "grab an edge to resize. The menus derive from the keymap; the Theme menu "
+                         "switches system, mode and decorations live.", "dialog-body"))
+        v.addWidget(section("Modal frame",
+                            row(button("Open dialog", "primary", ), button("Ask for text"),
+                                button("Keyboard hints", "ghost"))))
+        btns = page.findChildren(type(button("")))
+        btns[-3].clicked.connect(self._dialog)
+        btns[-2].clicked.connect(self._prompt)
+        btns[-1].clicked.connect(self.hints_overlay.toggle)
+        job_btn = button("Run a 3 s job", "primary")
+        job_btn.clicked.connect(self._job)
+        v.addWidget(section("Job seat", row(job_btn)))
+        deco_btn = button("Toggle decorations (shell frame ↔ window manager)")
+        deco_btn.clicked.connect(self._toggle_decorations)
+        v.addWidget(section("Decorations fallback", row(deco_btn)))
+        v.addStretch(1)
+        return page
+
+    # shell verbs
     def _dialog(self):
-        d = QDialog(self)
-        d.setWindowTitle("Unsubscribe")
-        d.setMinimumWidth(440)
-        lay = QVBoxLayout(d)
-        lay.setContentsMargins(18, 18, 18, 18)
-        lay.setSpacing(14)
-        lay.addWidget(text("Leave the list?", "h4"))
-        lay.addWidget(text("You will stop receiving the weekly letter. Past issues stay in the archive.", "dialog-body"))
-        bb = QDialogButtonBox()
-        bb.addButton(button("Cancel"), QDialogButtonBox.ButtonRole.RejectRole)
-        bb.addButton(button("Unsubscribe", "primary"), QDialogButtonBox.ButtonRole.AcceptRole)
-        bb.accepted.connect(d.accept)
-        bb.rejected.connect(d.reject)
-        lay.addWidget(bb)
-        d.exec()
+        d = Confirm(self, "Unsubscribe",
+                    "Leave the list? You will stop receiving the weekly letter. Past issues stay in the archive.",
+                    ok="Unsubscribe", cancel="Cancel")
+        d.exec_centered()
+        self.strip.set_readout("unsubscribed" if d.answer() else "kept the subscription")
+
+    def _prompt(self):
+        text_ = self.prompt_text("Search", "literal term:", placeholder="a needle")
+        self.strip.set_readout(f"searched for {text_!r}" if text_ else "search cancelled")
+
+    def _job(self):
+        if self._pool is None:
+            self._pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="gallery-job")
+        self.run_job("demo job", self._pool.submit(time.sleep, 3.0), done_text="demo job landed")
+
+    def _toggle_decorations(self):
+        self.set_decorations("system" if self.client_decorations else "client", persist=True)
+        self.strip.set_chip("decorations", self.decorations)
 
 
 def _system_page(theme: Theme) -> Optional[QWidget]:
@@ -320,11 +337,13 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="python -m cjm_substrate_qt_kit.gallery")
     ap.add_argument("--system", default=None, help="a vendored slug or a tokens.json path")
     ap.add_argument("--mode", default=None, help="a mode of the system, or auto")
-    ap.add_argument("--persist", action="store_true", help="write the choice to the prefs file")
+    ap.add_argument("--decorations", default=None, choices=("client", "system"),
+                    help="the shell's frame (client, default) or the window manager's (system)")
+    ap.add_argument("--persist", action="store_true", help="write the launch choice to the prefs file")
     a = ap.parse_args(argv)
     app = QApplication.instance() or QApplication(sys.argv[:1])
     theme = apply_theme(app, a.system, a.mode, persist=a.persist)
-    win = Gallery(theme, persist=a.persist)
+    win = Gallery(theme, decorations=a.decorations)
     win.show()
     return app.exec()
 

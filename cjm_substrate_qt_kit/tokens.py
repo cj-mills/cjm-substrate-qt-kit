@@ -204,6 +204,15 @@ def check(tokens: Dict[str, Any], source: str = "<tokens>") -> None:
             p.append("icons: an object with a set name (and an optional stroke_width)")
         elif "stroke_width" in icons and not isinstance(icons["stroke_width"], (int, float)):
             p.append("icons.stroke_width: a number")
+    chrome = tokens.get("chrome")
+    if chrome is not None:
+        if not isinstance(chrome, dict):
+            p.append("chrome: an object naming the shell chrome's ink (titlebar_ink: a mode key)")
+        else:
+            ink = chrome.get("titlebar_ink", "text")
+            if not isinstance(ink, str) or any(ink not in (block or {}) and ink not in ("text", "accent")
+                                               for block in mode_map.values() if isinstance(block, dict)):
+                p.append("chrome.titlebar_ink: must name a key every mode carries (e.g. fill_text)")
     if p:
         raise SchemaError(source, p)
 
@@ -243,7 +252,8 @@ def resolve(tokens: Dict[str, Any], mode: Optional[str] = None) -> Dict[str, str
         "ghost_hover": rgba(acc, .10), "ghost_press": rgba(acc, .18),
         "selection": rgba(acc, .30),
         # solid equivalents for QPalette / painting / rich-text HTML
-        "divider_solid": mix(text, bg, .16), "line_solid": mix(text, bg, .55),
+        "divider_solid": mix(text, bg, .16), "divider_strong_solid": mix(text, bg, .30),
+        "line_solid": mix(text, bg, .55),
         "muted_solid": mix(text, bg, .55), "label_solid": mix(text, bg, .70),
         "selection_solid": mix(acc, bg, .30), "row_alt_solid": mix(text, bg, .025),
         "disabled_solid": mix(text, bg, .35),
@@ -267,6 +277,11 @@ def resolve(tokens: Dict[str, Any], mode: Optional[str] = None) -> Dict[str, str
         v.setdefault(k, str(val))
         if isinstance(val, str) and val.startswith("#"):
             v.setdefault(f"{k}_hover", rgba(val, .14))
+    # the shell chrome's ink (ruling d1e3043e): the title bar's glyphs are
+    # painted pixmaps, so the system names which mode key inks them — the
+    # text by default, a bar's own contrast key (Netrunner: fill_text) else
+    chrome = tokens.get("chrome") or {}
+    v["titlebar_ink"] = v.get(str(chrome.get("titlebar_ink", "text")), text)
     for k, px in tokens["radius"].items():
         v[f"radius_{k}"] = str(round(px))
     for k, px in tokens["space"].items():

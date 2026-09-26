@@ -91,3 +91,18 @@ QRadioButton::indicator:checked { border-color: $text; image: url($icon_dot); }
 QCheckBox::indicator:disabled, QRadioButton::indicator:disabled { border-color: $disabled_border; background: $bg; }
 QCheckBox::indicator:checked:disabled { image: url($icon_check_disabled); }
 QRadioButton::indicator:checked:disabled { image: url($icon_dot_disabled); }
+
+/* the shell frame (ruling d1e3043e): hard edges, a solid fill title bar inked in fill_text */
+QFrame[kitFrame="true"] { background: $bg; border: 1px solid $line_solid; border-radius: 0; }
+QFrame[kitFrame="true"][kitMaximized="true"], QFrame[kitFrame="true"][chrome="system"] { border: none; }
+QFrame[role="titlebar"] { background: $fill; border: none; border-bottom: 1px solid $line; min-height: 30px; }
+QLabel[role="window-title"] { font-family: "$font_heading"; font-size: 13px; color: $fill_text; background: transparent; }
+QToolButton[role="window-verb"] { border: 1px solid transparent; border-radius: 0; padding: 3px; min-width: 20px; min-height: 20px; background: transparent; }
+QToolButton[role="window-verb"]:hover { border-color: $fill_text; background: transparent; }
+QToolButton[role="window-verb"]:pressed { background: $accent; }
+QToolButton[role="window-verb"][verb="close"]:hover { background: $danger; border-color: $danger; }
+
+/* the kit modal frame */
+QFrame[kitModal="true"] { background: $surface; border: 1px solid $line_solid; border-radius: 0; }
+QFrame[role="modal-header"] { background: $fill; border: none; border-bottom: 1px solid $line; }
+QLabel[role="modal-title"] { font-family: "$font_heading"; font-size: 13px; color: $fill_text; background: transparent; }
