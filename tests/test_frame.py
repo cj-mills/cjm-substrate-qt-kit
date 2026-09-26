@@ -27,11 +27,26 @@ def test_client_decorations_are_the_default_and_frameless(app):
     assert win.testAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
     assert win.titlebar.isVisibleTo(win)
     # the frame fills the window geometry (no transparent margin — a tiled
-    # window showed it as a gap); the grip is the frame's own band
+    # window showed it as a gap) and the content runs flush to the 1 px
+    # border: the grip is four overlays on the outer band, not padding
     assert win.contentsMargins().left() == 0
     assert win.frame.band == GRIP + 1
-    assert win.frame.layout().contentsMargins().left() == GRIP + 1
+    assert win.frame.layout().contentsMargins().left() == 1
     assert win.frame.property("kitFrame") is True
+    win.resize(400, 300)
+    win.show()
+    app.processEvents()
+    grips = {k: g.geometry() for k, g in win.frame.grips.items()}
+    top = grips[edge_value(Qt.Edge.TopEdge)]
+    right = grips[edge_value(Qt.Edge.RightEdge)]
+    assert (top.x(), top.y(), top.width(), top.height()) == (0, 0, 400, GRIP + 1)
+    assert (right.x(), right.width(), right.height()) == (400 - GRIP - 1, GRIP + 1, 300 - 2 * (GRIP + 1))
+    assert all(g.isVisibleTo(win.frame) for g in win.frame.grips.values())
+    top_grip = win.frame.grips[edge_value(Qt.Edge.TopEdge)]
+    assert top_grip.edges_at(QPoint(2, 2)) == (Qt.Edge.TopEdge | Qt.Edge.LeftEdge)
+    assert top_grip.edges_at(QPoint(200, 2)) == Qt.Edge.TopEdge
+    assert top_grip.edges_at(QPoint(398, 2)) == (Qt.Edge.TopEdge | Qt.Edge.RightEdge)
+    win.close()
     win.setWindowTitle("the workbench")
     assert win.titlebar.title.text() == "the workbench"
 
@@ -76,7 +91,9 @@ def test_maximized_drops_grip_border_and_swaps_the_verb(app):
     assert win.isMaximized()
     assert win.frame.property("kitMaximized") is True
     assert win.titlebar.property("kitMaximized") is True
-    assert win.frame.band == 0                             # no border, no padding, no grip
+    assert win.frame.band == 0                             # no border, no grip
+    assert win.frame.layout().contentsMargins().left() == 0
+    assert not any(g.isVisibleTo(win.frame) for g in win.frame.grips.values())
     assert win.titlebar.maximize_btn.toolTip() == "Restore"
     assert edge_value(win.edges_at(QPoint(1, 1))) == 0     # no grip while maximized
     win.titlebar.toggle_maximize()
@@ -126,10 +143,10 @@ def test_frame_paints_transparent_corners_and_its_own_border(app):
     assert img.pixelColor(0, 0).alpha() == 0            # beyond the radius
     assert img.pixelColor(1, 1).alpha() == 0
     edge = img.pixelColor(0, 150)
-    band = img.pixelColor(3, 150)
+    flush = img.pixelColor(1, 150)               # the content starts right inside the border
     inside = img.pixelColor(GRIP + 40, 150)
-    assert edge.alpha() == 255 and band.alpha() == 255 and inside.alpha() == 255
-    assert band.name() == t.vars["bg"] and inside.name() == t.vars["bg"]
+    assert edge.alpha() == 255 and flush.alpha() == 255 and inside.alpha() == 255
+    assert flush.name() == t.vars["bg"] and inside.name() == t.vars["bg"]
     assert edge.name() != t.vars["bg"]           # the border, not the background
     assert img.pixelColor(200, 0).alpha() == 255  # the top edge is painted, edge to edge
     win.close()

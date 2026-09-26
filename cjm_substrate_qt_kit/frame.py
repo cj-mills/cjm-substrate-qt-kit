@@ -18,14 +18,16 @@ coincidence; Netrunner did not). A shell window therefore OWNS its frame:
   verbs minimize / maximize-restore / close as Lucide glyphs inked by the
   system (tokens `chrome.titlebar_ink`, restyled on the ONE change signal),
   drag through QWindow.startSystemMove, double-click maximizes;
-- RESIZE rides a GRIP band INSIDE the frame's edge — the frame's own
-  padding, painted with it, so nothing of the window is transparent but
-  the corners: a press in the band calls QWindow.startSystemResize with
-  the edges under the pointer, and the window manager keeps owning
-  placement — snapping, Super+drag, Alt+F4 and tiling all still work. (A
-  transparent margin AROUND the frame was the first form; a tiled window
-  then showed a gap the width of the margin on every edge — user drive
-  2026-09-25 — because the frame sat inside the geometry the tile fills.)
+- RESIZE rides four invisible EdgeGrip strips laid OVER the frame's outer
+  band (the border + GRIP px): they take no layout space, so the content
+  runs flush to the border, and a press on one calls
+  QWindow.startSystemResize with the edges under the pointer — the window
+  manager keeps owning placement (snapping, Super+drag, Alt+F4 and tiling
+  all still work). (A transparent margin AROUND the frame was the first
+  form: a tiled window showed a gap the width of the margin — user drive
+  2026-09-25 — because the frame sat inside the geometry the tile fills;
+  padding INSIDE the frame was the second: it inset the title bar and
+  everything else from the edge.)
 - MAXIMIZED / fullscreen drops the radius, the border and the grip (the
   frame's `kitMaximized` property; the stylesheet answers it).
 
@@ -190,21 +192,63 @@ class TitleBar(QFrame):
         super().mouseDoubleClickEvent(event)
 
 
+class EdgeGrip(QWidget):
+    """One invisible strip laid OVER the frame's outer band (top / bottom /
+    left / right): it paints nothing, takes no layout space, and turns a
+    press into QWindow.startSystemResize with the edges under the pointer
+    (a corner is the strip's end). The content underneath runs flush to
+    the frame's border — the title bar, the menus, the body and the strip
+    all align with the edge (user ruling 2026-09-25: everything adjusts,
+    not the title bar alone)."""
+
+    def __init__(self, frame: "ShellFrame", side):
+        super().__init__(frame)
+        self.frame = frame
+        self.side = side
+        self.setMouseTracking(True)
+        self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
+        self.setCursor(_CURSORS[edge_value(side)])
+
+    def edges_at(self, pos: QPoint):
+        """The strip's own edge, plus the perpendicular edge at its ends
+        (the corners belong to the top / bottom strips)."""
+        edges = self.side
+        band = self.frame.band
+        if self.side in (Qt.Edge.TopEdge, Qt.Edge.BottomEdge):
+            if pos.x() < band:
+                edges |= Qt.Edge.LeftEdge
+            elif pos.x() >= self.width() - band:
+                edges |= Qt.Edge.RightEdge
+        return edges
+
+    def mouseMoveEvent(self, event) -> None:
+        self.setCursor(_CURSORS[edge_value(self.edges_at(event.position().toPoint()))])
+        super().mouseMoveEvent(event)
+
+    def mousePressEvent(self, event) -> None:
+        if event.button() == Qt.MouseButton.LeftButton:
+            handle = self.frame.host.windowHandle()
+            if handle is not None:
+                handle.startSystemResize(self.edges_at(event.position().toPoint()))
+            event.accept()
+            return
+        super().mousePressEvent(event)
+
+
 class ShellFrame(QFrame):
     """The painted frame: title bar, then the chrome slot (menubar, toolbars),
     the body (stretches) and the foot (find bar, job seat, status strip).
     The stylesheet paints it through `kitFrame`; `kitMaximized` and `chrome`
-    (client / system) are the properties it answers. Its outer band (the
-    1 px border + GRIP px of padding) is the resize grip: the band belongs
-    to the frame itself, so the mouse reaches it under any child."""
+    (client / system) are the properties it answers. The layout's only
+    margin is the 1 px border; the resize grip is four EdgeGrip overlays on
+    the outer band (border + GRIP px), so the content stays flush."""
 
     def __init__(self, host: QWidget, parent: Optional[QWidget] = None):
         super().__init__(parent)
         self.setProperty("kitFrame", True)
         self.setProperty("chrome", "client")
         self.setProperty("kitMaximized", False)
-        self.setMouseTracking(True)
-        self._host = host
+        self.host = host
         self._band = 1 + GRIP
         self.titlebar = TitleBar(host, self)
         self.chrome = QVBoxLayout()
@@ -217,17 +261,20 @@ class ShellFrame(QFrame):
         self.foot.setContentsMargins(0, 0, 0, 0)
         self.foot.setSpacing(0)
         self._lay = QVBoxLayout(self)
-        self._lay.setContentsMargins(self._band, self._band, self._band, self._band)
+        self._lay.setContentsMargins(1, 1, 1, 1)
         self._lay.setSpacing(0)
         self._lay.addWidget(self.titlebar)
         self._lay.addLayout(self.chrome)
         self._lay.addLayout(self.body, 1)
         self._lay.addLayout(self.foot)
+        self.grips: Dict[int, EdgeGrip] = {
+            edge_value(side): EdgeGrip(self, side)
+            for side in (Qt.Edge.LeftEdge, Qt.Edge.RightEdge, Qt.Edge.TopEdge, Qt.Edge.BottomEdge)}
 
     @property
     def band(self) -> int:
         """The current grip band in px (0 when maximized or under the window
-        manager's decorations — no border, no padding, no grip)."""
+        manager's decorations — no border, no grip)."""
         return self._band
 
     def set_state(self, maximized: bool, client: bool) -> None:
@@ -235,12 +282,35 @@ class ShellFrame(QFrame):
                    or self.property("chrome") != ("client" if client else "system"))
         self.setProperty("kitMaximized", bool(maximized))
         self.setProperty("chrome", "client" if client else "system")
-        self._band = (1 + GRIP) if (client and not maximized) else 0
-        self._lay.setContentsMargins(self._band, self._band, self._band, self._band)
+        bordered = client and not maximized
+        self._band = (1 + GRIP) if bordered else 0
+        m = 1 if bordered else 0
+        self._lay.setContentsMargins(m, m, m, m)
+        self._place_grips()
         if changed:
             repolish(self)
 
     # -- the resize grip --
+
+    def _place_grips(self) -> None:
+        """Lay the four strips over the outer band (hidden when there is no
+        band) and keep them above every child."""
+        b, w, h = self._band, self.width(), self.height()
+        rects = {
+            edge_value(Qt.Edge.TopEdge): (0, 0, w, b),
+            edge_value(Qt.Edge.BottomEdge): (0, h - b, w, b),
+            edge_value(Qt.Edge.LeftEdge): (0, b, b, h - 2 * b),
+            edge_value(Qt.Edge.RightEdge): (w - b, b, b, h - 2 * b),
+        }
+        for key, grip in self.grips.items():
+            grip.setVisible(b > 0)
+            if b > 0:
+                grip.setGeometry(*rects[key])
+                grip.raise_()
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._place_grips()
 
     def edges_at(self, pos: QPoint):
         """The Qt.Edge flags under `pos` (frame coordinates) when it sits in
@@ -259,28 +329,6 @@ class ShellFrame(QFrame):
         elif pos.y() >= r.height() - self._band:
             edges |= Qt.Edge.BottomEdge
         return edges
-
-    def mousePressEvent(self, event) -> None:
-        edges = self.edges_at(event.position().toPoint())
-        if edge_value(edges) and event.button() == Qt.MouseButton.LeftButton:
-            handle = self._host.windowHandle()
-            if handle is not None:
-                handle.startSystemResize(edges)
-            event.accept()
-            return
-        super().mousePressEvent(event)
-
-    def mouseMoveEvent(self, event) -> None:
-        shape = _CURSORS.get(edge_value(self.edges_at(event.position().toPoint())))
-        if shape is None:
-            self.unsetCursor()
-        else:
-            self.setCursor(shape)
-        super().mouseMoveEvent(event)
-
-    def leaveEvent(self, event) -> None:
-        self.unsetCursor()
-        super().leaveEvent(event)
 
 
 def hint_system_scheme(app: QApplication, theme) -> None:
