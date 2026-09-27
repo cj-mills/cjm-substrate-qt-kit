@@ -7,7 +7,9 @@ object (`theme`) lands on the application as fonts + QPalette + rendered
 QSS + recolored Lucide icons (`icons`), with ONE change signal every kit
 widget restyles on; the persisted choice lives in `prefs`; the component
 class helpers in `widgets`; the gallery (`gallery`) renders every component
-under any system + mode; (b) the APP SHELL (rulings 2bae2cc1 + d1e3043e) —
+under any system + mode; a switch lands exactly what a fresh launch lands —
+fonts ride ONE channel (the stylesheet's font roles), parsed content
+re-parses on the signal — and `roundtrip` checks it pixel-for-pixel; (b) the APP SHELL (rulings 2bae2cc1 + d1e3043e) —
 every Qt app is an instance of `shell.AppShell`: the window frame with
 client-side decorations painted from the tokens (`frame`: the translucent
 host, the painted frame, the title bar, the resize grip, the window-manager
@@ -26,4 +28,4 @@ between the workbench and the transcription shell (DEC dcf8a712); grown by
 demand, never speculation.
 """
 
-__version__ = "0.0.9"
+__version__ = "0.0.10"

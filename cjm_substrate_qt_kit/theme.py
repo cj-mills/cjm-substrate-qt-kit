@@ -37,7 +37,7 @@ from typing import Callable, Dict, List, Optional, Union
 import shiboken6
 from PySide6.QtCore import QObject, Qt, Signal
 from PySide6.QtGui import (QColor, QFont, QFontDatabase, QFontMetrics, QPalette, QTextBlockFormat,
-                           QTextCursor)
+                           QTextCursor, QTextDocument, QTextFormat)
 from PySide6.QtWidgets import QApplication, QTextEdit, QWidget
 
 from . import prefs, systems, tokens as T
@@ -120,6 +120,7 @@ def render_qss(tok: dict, mode: str, icons: IconSet, icon_out: Union[str, Path],
     name order; `$holes` filled from the resolved vars; indicator SVGs
     recolored into `icon_out`."""
     v = T.resolve(tok, mode)
+    v["font_mono_family"] = font_family(v, "mono")   # the font-role channel's mono face
     for hole, (name, color_var) in QSS_ICONS.items():
         v[f"icon_{hole}"] = icons.write(name, v[color_var], icon_out)
     files = sorted(Path(qss_dir).glob("*.qss")) + sorted(KIT_QSS.glob("*.qss"))
@@ -408,3 +409,73 @@ def _qcolor(c: str) -> QColor:
         r, g, b, a = [int(x) for x in c[5:-1].split(",")]
         return QColor(r, g, b, a)
     return QColor(c)
+
+
+def font_family(theme: Optional[Dict[str, str]] = None, kind: str = "body") -> str:
+    """The face a type slot names; an EMPTY mono slot means the platform's
+    fixed font, spelled "monospace" (the fontconfig alias) so the kit
+    stylesheet, make_font and the document pass all name the same face."""
+    v = theme if theme is not None else current_theme()
+    family = str(v.get(f"font_{kind}") or "")
+    return family or ("monospace" if kind == "mono" else "")
+
+
+def font_role(widget: QWidget, kind: str) -> QWidget:
+    """Declare a widget's type slot ("mono" / "body") on the ONE font
+    channel: the kit stylesheet layer sets the face from the tokens
+    (`*[kitFont="mono"]`), so a system switch lands what a fresh launch
+    lands. setFont under an application stylesheet is order-dependent — the
+    stylesheet wins at launch, setFont after a switch (finding b7e68f56)."""
+    widget.setProperty("kitFont", kind)
+    widget.style().unpolish(widget)
+    widget.style().polish(widget)
+    return widget
+
+
+def style_document(doc: QTextDocument, theme: Optional[Dict[str, str]] = None) -> None:
+    """Land the design system on a PARSED document: headings in the heading
+    face at the type scale, code in the mono slot, links in accent. The
+    markdown importer ignores the default stylesheet (document_css reaches
+    HTML only) and bakes the link color + the fixed face at parse time, so a
+    pane runs this pass after every parse and re-parses on the change signal
+    (the ReadingPane does both — finding b7e68f56)."""
+    v = theme if theme is not None else current_theme()
+    heading, mono = font_family(v, "heading"), font_family(v, "mono")
+    accent = _qcolor(v["accent"])
+    P = QTextFormat.Property
+    runs = []                                 # (start, end, format): collected first —
+    block = doc.begin()                       # setCharFormat merges fragments under the walk
+    while block.isValid():
+        bf = block.blockFormat()
+        level = min(bf.headingLevel(), 4)
+        fenced = bf.hasProperty(P.BlockCodeFence) or bf.nonBreakableLines()
+        it = block.begin()
+        while not it.atEnd():
+            frag = it.fragment()
+            fmt = frag.charFormat()
+            if level > 0:
+                fmt.clearProperty(P.FontSizeAdjustment)
+                fmt.setFontFamilies([heading])
+                fmt.setProperty(P.FontPixelSize, int(round(float(v[f"fs_h{level}"]))))
+                fmt.setFontWeight(int(v[f"fw_h{level}"]))
+            elif fenced or fmt.fontFixedPitch():
+                fmt.setFontFamilies([mono])
+                fmt.setProperty(P.FontPixelSize, int(round(float(v["fs_mono"]))))
+            if fmt.isAnchor():
+                fmt.setForeground(accent)
+            if fmt != frag.charFormat():
+                runs.append((frag.position(), frag.position() + frag.length(), fmt))
+            it += 1
+        block = block.next()
+    cursor = QTextCursor(doc)
+    cursor.beginEditBlock()
+    for start, end, fmt in runs:
+        cursor.setPosition(start)
+        cursor.setPosition(end, QTextCursor.MoveMode.KeepAnchor)
+        cursor.setCharFormat(fmt)
+    cursor.endEditBlock()
+    if runs:
+        # Format edits under an in-flight incremental layout can leave trailing
+        # blocks unlaid (lineCount 0) while the layout reports itself finished —
+        # a short scroll range after a switch; invalidate the whole document.
+        doc.markContentsDirty(0, doc.characterCount())

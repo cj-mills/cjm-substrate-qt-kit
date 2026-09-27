@@ -14,6 +14,7 @@ from PySide6.QtGui import QTextCursor
 from PySide6.QtWidgets import QTextBrowser, QWidget
 
 from .keys import bind
+from .theme import on_change, style_document
 
 Seat = Tuple[int, int, int]      # (scroll, cursor anchor, cursor position)
 
@@ -28,6 +29,9 @@ class ReadingPane(QTextBrowser):
         self.setTabChangesFocus(False)     # tab stays ours: links, not widgets
         self.document().setDocumentMargin(16)
         self.anchorClicked.connect(self.activated.emit)
+        self.document().setUndoRedoEnabled(False)   # read-only: the styling pass is not history
+        self._source: Optional[Tuple[str, str]] = None   # (kind, text) — re-parsed on the change signal
+        on_change(self._on_theme)    # a BOUND method: the wire dies with the widget
         self._scroll_lines = scroll_lines
         if scroll_keys:
             down, up = scroll_keys
@@ -35,6 +39,40 @@ class ReadingPane(QTextBrowser):
                  Qt.ShortcutContext.WidgetShortcut)
             bind(self, up, lambda: self.scroll_lines(-self._scroll_lines), self,
                  Qt.ShortcutContext.WidgetShortcut)
+
+    # ---- content: a projection of (source, theme) ---------------------------
+
+    def setMarkdown(self, markdown: str) -> None:
+        """Parse `markdown` and land the design system on it (theme.style_document).
+        The source is HELD: parsed content bakes theme values (link colors,
+        faces), so a theme change re-parses it (finding b7e68f56)."""
+        self._source = ("markdown", markdown)
+        super().setMarkdown(markdown)
+        style_document(self.document())
+
+    def setHtml(self, html: str) -> None:
+        """setMarkdown's twin for HTML content."""
+        self._source = ("html", html)
+        super().setHtml(html)
+        style_document(self.document())
+
+    def setPlainText(self, text: str) -> None:
+        self._source = None
+        super().setPlainText(text)
+
+    def clear(self) -> None:
+        self._source = None
+        super().clear()
+
+    def _on_theme(self, _theme) -> None:
+        """Re-parse the held source under the new theme; the seat survives
+        (a switch lands what a fresh launch lands)."""
+        if self._source is None:
+            return
+        seat = self.seat()
+        kind, text = self._source
+        (self.setMarkdown if kind == "markdown" else self.setHtml)(text)
+        self.restore_seat(seat)
 
     # ---- keys --------------------------------------------------------------
 

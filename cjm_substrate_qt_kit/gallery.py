@@ -31,6 +31,7 @@ from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QGridLayout, 
 
 from .hitl import HitlPanel
 from .modal import Confirm
+from .readingpane import ReadingPane
 from .shell import AppShell
 from .statusstrip import StatusStrip
 from .theme import apply_theme, on_change, Theme
@@ -250,6 +251,13 @@ class Gallery(AppShell):
         v = QVBoxLayout(page)
         v.setSpacing(28)
         v.addWidget(text("Kit chrome", "h2"))
+        self.reading = ReadingPane()
+        self.reading.setMinimumHeight(300)
+        self.reading.setMarkdown(
+            "# The reading pane\n\nMarkdown under the live system: headings in the heading face, "
+            "`code` in the mono slot, [a link](graph://gallery) in accent — tab cycles links, "
+            "enter opens.\n\n## A second level\n\n```\nfenced code keeps the mono slot\n```\n")
+        v.addWidget(section("Reading pane (re-parsed on every switch)", self.reading))
         self.hitl = HitlPanel()
         self.hitl.setMinimumHeight(360)
         items = [{"key": i, "tier": 1 + (i % 2), "category": ["filler", "aside", "quote"][i % 3],

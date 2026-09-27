@@ -13,6 +13,14 @@
 *[role="dim"] { color: $dim; }
 *[role="accent"] { color: $accent; }
 
+/* The FONT-ROLE CHANNEL (finding b7e68f56): a widget declares its type slot
+   with theme.font_role(w, "mono") and this layer sets the face from the
+   tokens — ONE channel, so a system switch lands what a fresh launch lands
+   (setFont under an application stylesheet is order-dependent: the
+   stylesheet wins at launch, setFont after a switch). */
+*[kitFont="mono"] { font-family: "$font_mono_family"; font-size: ${fs_mono}px; }
+*[kitFont="body"] { font-family: "$font_body"; font-size: ${fs_body}px; }
+
 /* kit chrome that the system templates do not name */
 QSplitter::handle { background: $divider_solid; }
 QSplitter::handle:horizontal { width: 1px; }

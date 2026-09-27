@@ -34,7 +34,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QLabel, QTextBrowser, QVBoxLayout, QWidget
 
 from .pickerlist import PickerList, Row, Span
-from .theme import current_theme, make_font, on_change, state_color
+from .theme import current_theme, font_role, on_change, state_color
 
 Item = Dict[str, Any]
 
@@ -173,7 +173,7 @@ class VerdictStrip(QLabel):
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.setTextFormat(Qt.TextFormat.RichText)
         self.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        self.setFont(make_font(kind="mono"))
+        font_role(self, "mono")
         self._plain = ""
         self._last = None            # the last set_verdicts args (re-painted on theme change)
         self.restyle()
@@ -221,9 +221,8 @@ class VerdictStrip(QLabel):
         return self._plain
 
     def restyle(self) -> None:
-        """The live theme's mono font; the painted counts re-render with the
-        new colors (they are baked into the HTML)."""
-        self.setFont(make_font(kind="mono"))
+        """The painted counts re-render with the new colors (they are baked
+        into the HTML); the mono face rides the font-role channel."""
         if self._last is not None:
             self.set_verdicts(*self._last)
 
@@ -236,7 +235,7 @@ class ProvenancePane(QTextBrowser):
     def __init__(self, parent: Optional[QWidget] = None, *, budget_rows: int = 6):
         super().__init__(parent)
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        self.setFont(make_font(kind="mono"))
+        font_role(self, "mono")
         self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self._budget = max(1, int(budget_rows))
@@ -269,9 +268,8 @@ class ProvenancePane(QTextBrowser):
         return "\n".join(f"{k}: {v}" for k, v in self._entries)
 
     def restyle(self) -> None:
-        """The live theme's mono font; the entries re-render with the new
-        colors (baked into the HTML)."""
-        self.setFont(make_font(kind="mono"))
+        """The entries re-render with the new colors (baked into the HTML);
+        the mono face rides the font-role channel."""
         if hasattr(self, "_entries"):
             self.set_entries(self._entries)
 

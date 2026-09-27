@@ -38,7 +38,7 @@ from PySide6.QtGui import QColor, QFontMetrics, QTextDocument
 from PySide6.QtWidgets import (QAbstractItemView, QListWidget, QListWidgetItem, QStyle,
                                QStyledItemDelegate, QTextBrowser, QVBoxLayout, QWidget)
 
-from .theme import current_theme, make_font, on_change, state_color
+from .theme import current_theme, font_role, on_change, state_color
 
 Span = Tuple[str, str]          # (text, style words: color word(s) + "bold")
 Row = Dict[str, Any]            # {"kind", "spans", "key"}
@@ -148,7 +148,7 @@ class PickerList(QWidget):
         self._cursor = 0
         self.view = QListWidget(self)
         self.view.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        self.view.setFont(make_font(kind="mono"))
+        font_role(self.view, "mono")
         self.view.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.view.setItemDelegate(SpanRowDelegate(self.view))
         self.view.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -157,7 +157,7 @@ class PickerList(QWidget):
         self.view.itemDoubleClicked.connect(self._on_double)
         self.detail = QTextBrowser(self)
         self.detail.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        self.detail.setFont(make_font(kind="mono"))
+        font_role(self.detail, "mono")
         self.detail.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.detail.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.detail.setVisible(False)
@@ -311,13 +311,11 @@ class PickerList(QWidget):
     # ---- chrome ----------------------------------------------------------
 
     def restyle(self) -> None:
-        """Re-apply the live theme: the mono font and every row's rich-text
-        fragment (colors are baked into the HTML at render time, so a theme
-        change re-renders the fragments in place — no row rebuild, the
-        cursor stays). Chrome comes from the system's stylesheet."""
+        """Re-apply the live theme: every row's rich-text fragment (colors
+        are baked into the HTML at render time, so a theme change re-renders
+        the fragments in place — no row rebuild, the cursor stays). Chrome
+        and the mono face come from the stylesheet (the font-role channel)."""
         t = current_theme()
-        self.view.setFont(make_font(t, "mono"))
-        self.detail.setFont(make_font(t, "mono"))
         for i, r in enumerate(self._rows):
             item = self.view.item(i)
             if item is not None:
