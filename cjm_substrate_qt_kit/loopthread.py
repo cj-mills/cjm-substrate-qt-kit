@@ -22,6 +22,11 @@ from concurrent.futures import Future
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Union
 
+try:  # the op clock (design 8f6f2343) — optional, like journaling itself
+    from cjm_context_graph_primitives.journal import op_clocked, PROVENANCE_TS
+except ImportError:  # no primitives: no journal, so no clock to carry
+    op_clocked = PROVENANCE_TS = None
+
 
 class LoopThreadSession:
     """Owns one daemon asyncio loop thread; subclasses put their subsystem's
@@ -72,7 +77,11 @@ class LoopThreadSession:
         return self.journal_paths[0]
 
     def submit(self, coro) -> Future:
-        """Schedule a coroutine on the loop thread; resolves there."""
+        """Schedule a coroutine on the loop thread; resolves there. The caller's op clock
+        window rides along (design 8f6f2343): a write submitted inside `op_write` runs in it."""
+        ts = PROVENANCE_TS.get() if PROVENANCE_TS is not None else None
+        if ts is not None:
+            coro = _in_window(coro, ts)
         return asyncio.run_coroutine_threadsafe(coro, self._loop)
 
     def call(self, coro):
@@ -93,3 +102,23 @@ class LoopThreadSession:
                 self._thread.join(timeout=5)
             self._loop = None
             self._thread = None
+
+
+async def _in_window(coro, ts: float):  # The coroutine's result
+    """Run a submitted coroutine inside the caller's op clock window (the loop thread's task
+    does not inherit the submitting thread's context)."""
+    token = PROVENANCE_TS.set(ts)
+    try:
+        return await coro
+    finally:
+        PROVENANCE_TS.reset(token)
+
+
+def op_write(fn):
+    """One session write gesture = ONE op clock window (design 8f6f2343, amendment efd659a1's
+    grain for apps): the db write the method submits and the journal op it mirrors carry the
+    same time, so the live db equals its rebuild. Wraps sync methods (the window rides into the
+    loop coroutine through `submit`) and coroutine methods (the window opens on the loop);
+    a pass-through when cjm-context-graph-primitives is absent (no journal, no clock). The
+    kit's name for primitives' `op_clocked`."""
+    return op_clocked(fn) if op_clocked is not None else fn
