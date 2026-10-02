@@ -1,8 +1,9 @@
 """The ONE Qt foundation library for the cjm-substrate application lane (ruling 8b7351e4).
 
 Three strata: (a) the DESIGN-SYSTEM RUNTIME — a design system is DATA (one
-tokens.json per system, schema v1 in `tokens`; Classical and Netrunner
-vendored under `systems/`) resolved into one flat vocabulary that ONE Theme
+tokens.json per system, schema v1, Classical and Netrunner with their fonts:
+all in cjm-design-system, design 0858bbd0; the kit's `systems/` keeps each
+system's QSS templates and painted widgets) resolved into one flat vocabulary that ONE Theme
 object (`theme`) lands on the application as fonts + QPalette + rendered
 QSS + recolored Lucide icons (`icons`), with ONE change signal every kit
 widget restyles on; the persisted choice lives in `prefs`; the component

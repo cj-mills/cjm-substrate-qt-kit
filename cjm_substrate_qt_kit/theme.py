@@ -35,12 +35,13 @@ from string import Template
 from typing import Callable, Dict, List, Optional, Union
 
 import shiboken6
+from cjm_design_system import systems as design_systems, tokens as T
 from PySide6.QtCore import QObject, Qt, Signal
 from PySide6.QtGui import (QColor, QFont, QFontDatabase, QFontMetrics, QPalette, QTextBlockFormat,
                            QTextCursor, QTextDocument, QTextFormat)
 from PySide6.QtWidgets import QApplication, QTextEdit, QWidget
 
-from . import prefs, systems, tokens as T
+from . import prefs, systems
 from .icons import IconSet
 
 KIT_QSS = Path(__file__).parent / "qss"   # the kit layer, appended after any system's templates
@@ -106,7 +107,7 @@ def current_theme() -> Dict[str, str]:
     if _current is not None:
         return _current.vars
     if _headless is None:
-        tok = T.load(systems.tokens_path(prefs.DEFAULT_SYSTEM))
+        tok = T.load(design_systems.tokens_path(prefs.DEFAULT_SYSTEM))
         _headless = T.resolve(tok, T.modes(tok)[0])
     return _headless
 
@@ -198,12 +199,12 @@ class Theme(QObject):
         return _current
 
     def _load_system(self, system: Union[str, Path]) -> None:
-        root = systems.locate(system)
+        root = design_systems.locate(system)
         path = root / "tokens.json"
         tok = T.load(path)
         T.check(tok, str(path))
         self.root, self.tokens, self.system = root, tok, T.slug(tok)
-        self.qss_dir = root / "qss" if (root / "qss").is_dir() else systems.BASE_QSS
+        self.qss_dir = systems.qss_dir(self.system, root)
         icon_dirs = [root / "icons"] if (root / "icons").is_dir() else []
         stroke = float((tok.get("icons") or {}).get("stroke_width", T.ICONS_DEFAULTS["stroke_width"]))
         self.icons = IconSet(icon_dirs, stroke_width=stroke)

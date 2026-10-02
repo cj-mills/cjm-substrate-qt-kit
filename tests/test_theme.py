@@ -13,7 +13,7 @@ from PySide6.QtWidgets import QLabel, QListWidgetItem, QTextEdit
 
 from cjm_substrate_qt_kit import prefs
 from cjm_substrate_qt_kit import theme as th
-from cjm_substrate_qt_kit import tokens as T
+from cjm_design_system import tokens as T
 from cjm_substrate_qt_kit.findbar import FindBar
 from cjm_substrate_qt_kit.formdialog import FormShell
 from cjm_substrate_qt_kit.hitl import ProvenancePane, VerdictStrip

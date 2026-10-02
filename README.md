@@ -32,7 +32,7 @@ The ONE Qt foundation library for the cjm-substrate application lane (ruling 8b7
 - **`cjm_substrate_qt_kit.shell`** — The APP SHELL (ruling 2bae2cc1; the decorations ruling d1e3043e): every
 - **`cjm_substrate_qt_kit.statusstrip`** — StatusStrip: the footer's slot model (DEC 2a42c028).
 - **`cjm_substrate_qt_kit.style`** — Row-style vocabulary for the lane's list widgets.
-- **`cjm_substrate_qt_kit.systems.__init__`** — The design systems the kit ships as DATA (ruling a439c226): one directory
+- **`cjm_substrate_qt_kit.systems.__init__`** — The Qt half of each design system (ruling a439c226, design 0858bbd0): a
 - **`cjm_substrate_qt_kit.systems.classical.__init__`** — Classical — the first seed system: outlined serif (Cormorant Garamond
 - **`cjm_substrate_qt_kit.systems.netrunner.__init__`** — Netrunner — the second seed system: hard-edged terminal look (Silkscreen
 - **`cjm_substrate_qt_kit.systems.netrunner.widgets`** — Netrunner's painted widgets: what QSS cannot draw (chamfered header bars,
@@ -40,10 +40,8 @@ The ONE Qt foundation library for the cjm-substrate application lane (ruling 8b7
 - **`cjm_substrate_qt_kit.testbed_corpus`** — Bundled clean-prose corpus for the readability test-bed.
 - **`cjm_substrate_qt_kit.text`** — Text clamps for one-line surfaces — path-like strings keep their END.
 - **`cjm_substrate_qt_kit.theme`** — The design-system RUNTIME: ONE Theme object, ONE change signal (ruling
-- **`cjm_substrate_qt_kit.tokens`** — Token schema v1 — a design system as DATA, resolved headlessly (ruling
 - **`cjm_substrate_qt_kit.tools.__init__`** — Kit tools (run as modules):
-- **`cjm_substrate_qt_kit.tools.build`** — Build the static projections of a design system, no QApplication needed:
-- **`cjm_substrate_qt_kit.tools.css_to_tokens`** — Import a web-first design system's CSS into a schema-v1 tokens file.
+- **`cjm_substrate_qt_kit.tools.build`** — Build the static Qt projections of a design system, no QApplication
 - **`cjm_substrate_qt_kit.tools.icons_pull`** — Pull named Lucide icons into the kit's vendored subset (or a system's own
 - **`cjm_substrate_qt_kit.widgets`** — Small helpers that map the design system's component classes onto Qt —
 
@@ -149,6 +147,7 @@ The ONE Qt foundation library for the cjm-substrate application lane (ruling 8b7
 ### `cjm_substrate_qt_kit.loopthread`
 
 - `LoopThreadSession` _class_ — Owns one daemon asyncio loop thread; subclasses put their subsystem's
+- `op_write` _function_ — One session write gesture = ONE op clock window (design 8f6f2343, amendment efd659a1's
 
 ### `cjm_substrate_qt_kit.modal`
 
@@ -229,9 +228,7 @@ The ONE Qt foundation library for the cjm-substrate application lane (ruling 8b7
 
 ### `cjm_substrate_qt_kit.systems.__init__`
 
-- `available` _function_ — Every vendored system slug (a directory carrying a tokens.json).
-- `locate` _function_ — The directory of a system: a vendored slug, a directory holding a
-- `tokens_path` _function_
+- `qss_dir` _function_ — A trial system's own `qss/` beside its tokens.json first, else the
 
 ### `cjm_substrate_qt_kit.systems.netrunner.widgets`
 
@@ -274,33 +271,9 @@ The ONE Qt foundation library for the cjm-substrate application lane (ruling 8b7
 - `style_document` _function_ — Land the design system on a PARSED document: headings in the heading
 - `style_text_pane` _function_ — Reading-quality setup for a text pane (QTextEdit / QTextBrowser /
 
-### `cjm_substrate_qt_kit.tokens`
-
-- `SchemaError` _class_ — A tokens file that violates schema v1 — every problem listed, so one
-- `check` _function_ — Refuse a malformed system loudly: every missing / mistyped field named
-- `load` _function_ — Read a tokens file (JSON). `check` it before resolving anything.
-- `mix` _function_ — Flatten `fg` at opacity `t` over `bg` -> a solid hex (QPalette, painters,
-- `mode_for_scheme` _function_ — The mode the system maps an OS scheme ("light" / "dark") onto — None
-- `modes` _function_
-- `resolve` _function_ — tokens + mode -> the flat vocabulary every projection reads: the QSS
-- `rgba` _function_ — QSS rgba() with a 0-255 alpha (the form every Qt 6 version parses).
-- `slug` _function_ — The system's file-system / preference slug: lower-case, spaces -> dashes.
-- `to_css` _function_ — The CSS custom-properties layer for a system — the ruling's second
-- `to_hex` _function_
-
 ### `cjm_substrate_qt_kit.tools.build`
 
 - `main` _function_
-
-### `cjm_substrate_qt_kit.tools.css_to_tokens`
-
-- `convert` _function_
-- `darker` _function_
-- `family` _function_
-- `main` _function_
-- `parse_root` _function_
-- `px` _function_
-- `ramp` _function_
 
 ### `cjm_substrate_qt_kit.tools.icons_pull`
 
@@ -322,5 +295,5 @@ The ONE Qt foundation library for the cjm-substrate application lane (ruling 8b7
 
 ## Dependencies
 
-**Depends on:** `PySide6`, `cjm-harness-transcripts`
+**Depends on:** `PySide6`, `cjm-design-system`, `cjm-harness-transcripts`
 **Used by:** `cjm-graph-workbench-qt`, `cjm-session-scratchpad-qt`, `cjm-transcript-correction-qt`, `cjm-transcript-decomp-qt`, `cjm-transcription-qt`, `cjm-workflow-hub-qt`

@@ -26,11 +26,12 @@ text-entry guard gates bare-letter verbs off inside a field)."""
 from concurrent.futures import Future, ThreadPoolExecutor
 from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence
 
+from cjm_design_system import systems as design_systems
 from PySide6.QtCore import Signal
 from PySide6.QtGui import QAction, QActionGroup
 from PySide6.QtWidgets import QApplication, QMenu, QMenuBar, QStackedWidget, QWidget
 
-from . import sessionkey, systems
+from . import sessionkey
 from .bridge import FutureBridge
 from .findbar import FindBar
 from .frame import FramedWindow, hint_system_scheme
@@ -55,7 +56,7 @@ def add_theme_menu(menubar: QMenuBar, window: "AppShell") -> QMenu:
     systems_menu = QMenu("Design system", menu)
     menu.addMenu(systems_menu)
     group = QActionGroup(menu)
-    for slug in systems.available():
+    for slug in design_systems.available():
         act = QAction(slug, menu, checkable=True)
         act.setChecked(t is not None and slug == t.system)
         act.triggered.connect(lambda _c=False, s=slug: window.set_system(s))
