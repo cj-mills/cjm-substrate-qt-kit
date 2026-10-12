@@ -8,19 +8,17 @@ import json
 import os
 
 import pytest
-from PySide6.QtGui import QColor, QPalette, QTextBlockFormat
-from PySide6.QtWidgets import QLabel, QListWidgetItem, QTextEdit
-
-from cjm_substrate_qt_kit import prefs
-from cjm_substrate_qt_kit import theme as th
 from cjm_design_system import tokens as T
+from cjm_substrate_qt_kit import prefs, theme as th
 from cjm_substrate_qt_kit.findbar import FindBar
 from cjm_substrate_qt_kit.formdialog import FormShell
 from cjm_substrate_qt_kit.hitl import ProvenancePane, VerdictStrip
 from cjm_substrate_qt_kit.keyhints import KeyHintsOverlay
-from cjm_substrate_qt_kit.pickerlist import PickerList, _ROW_HTML
+from cjm_substrate_qt_kit.pickerlist import _ROW_HTML, PickerList
 from cjm_substrate_qt_kit.statusstrip import StatusStrip
 from cjm_substrate_qt_kit.style import apply_row_style
+from PySide6.QtGui import QColor, QPalette, QTextBlockFormat
+from PySide6.QtWidgets import QLabel, QListWidgetItem, QTextEdit
 
 
 @pytest.fixture(autouse=True)

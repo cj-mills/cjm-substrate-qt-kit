@@ -5,13 +5,12 @@ widget-built dialogs (prompt, confirm, notice) ride it. Modal OPENING stays
 with test_keyhints (the register's offscreen active-window hazard): these
 tests show non-modal frames or setVisible a dialog without open()."""
 
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QDialog, QTextBrowser, QWidget
-
 from cjm_substrate_qt_kit.formdialog import FormShell
 from cjm_substrate_qt_kit.keyhints import KeyHintsOverlay
 from cjm_substrate_qt_kit.modal import Confirm, Dialog, ModalFrame, Notice, TextPrompt
 from cjm_substrate_qt_kit.theme import apply_theme
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QDialog, QTextBrowser, QWidget
 
 
 def test_modal_frame_is_translucent_and_frameless(app):

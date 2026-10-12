@@ -6,7 +6,6 @@ consulted; ${WS} records resolve against the root."""
 import os
 
 import pytest
-
 from cjm_substrate_qt_kit import launch
 
 

@@ -2,10 +2,9 @@
 through the one route a click takes, the seat round-trip, block-exact
 scroll-to-group."""
 
+from cjm_substrate_qt_kit.readingpane import ReadingPane
 from PySide6.QtCore import Qt, QUrl
 from PySide6.QtTest import QTest
-
-from cjm_substrate_qt_kit.readingpane import ReadingPane
 
 HTML = ('<p>intro <a href="graph://one">one</a> then <a href="graph://two">two</a></p>'
         '<p>neighbours (2)</p><p>REFERENCES</p><p>a <a href="graph://three">three</a></p>'

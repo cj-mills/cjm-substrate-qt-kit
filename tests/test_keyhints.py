@@ -1,13 +1,11 @@
 """Keyhints contract: grouped model, responsive columns, pin round-trip,
 hint-line projection, registry group flow-through."""
 
-from PySide6.QtCore import QUrl
-from PySide6.QtWidgets import QWidget
-
-from cjm_substrate_qt_kit.keyhints import (KeyHintsOverlay, column_count,
-                                           group_entries, hint_line,
+from cjm_substrate_qt_kit.keyhints import (column_count, group_entries, hint_line, KeyHintsOverlay,
                                            render_hints_html)
 from cjm_substrate_qt_kit.keymap import KeymapRegistry
+from PySide6.QtCore import QUrl
+from PySide6.QtWidgets import QWidget
 
 ENTRIES = [
     {"verb": "walk.next", "label": "next segment", "key": "J", "group": "Walk"},

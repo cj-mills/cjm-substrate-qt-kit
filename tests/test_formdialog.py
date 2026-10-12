@@ -4,9 +4,8 @@ the footer holds whatever the subclass paints there, the esc ladder closes
 an open editor before the dialog, and open_sized sizes to the rendered
 rows capped by the owner."""
 
-from PySide6.QtCore import QUrl
-
 from cjm_substrate_qt_kit.formdialog import FormShell
+from PySide6.QtCore import QUrl
 
 
 def rows():

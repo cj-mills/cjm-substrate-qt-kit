@@ -1,7 +1,7 @@
 """The job seat (ruling 2bae2cc1 (5)): a row per running job, hidden when
 idle, progress and outcomes reported through the seat's signal."""
 
-from cjm_substrate_qt_kit.jobs import JobSeat, fmt_elapsed
+from cjm_substrate_qt_kit.jobs import fmt_elapsed, JobSeat
 
 
 def test_rows_come_and_go_with_the_outcome_signal(app):

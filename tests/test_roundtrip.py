@@ -5,13 +5,12 @@ reading pane included) in both directions; plus the two mechanisms that
 broke it: the reading pane's parse-time styling and the two font channels."""
 
 import pytest
-from PySide6.QtGui import QTextCursor
-
 from cjm_substrate_qt_kit import roundtrip
 from cjm_substrate_qt_kit.gallery import Gallery
 from cjm_substrate_qt_kit.pickerlist import PickerList
 from cjm_substrate_qt_kit.readingpane import ReadingPane
 from cjm_substrate_qt_kit.theme import apply_theme, current, current_theme, font_family
+from PySide6.QtGui import QTextCursor
 
 MD = "# Head\n\nbody `code` [link](graph://x)\n\n```\nblock\n```\n"
 

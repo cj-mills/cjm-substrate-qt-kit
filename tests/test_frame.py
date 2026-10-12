@@ -5,11 +5,10 @@ title and the window verbs; maximized drops the grip and the radius; the
 system fallback hands the frame back to the window manager."""
 
 import pytest
-from PySide6.QtCore import QPoint, Qt
-
 from cjm_substrate_qt_kit import prefs
-from cjm_substrate_qt_kit.frame import GRIP, FramedWindow, TitleBar, edge_value
+from cjm_substrate_qt_kit.frame import edge_value, FramedWindow, GRIP, TitleBar
 from cjm_substrate_qt_kit.theme import apply_theme
+from PySide6.QtCore import QPoint, Qt
 
 
 @pytest.fixture(autouse=True)

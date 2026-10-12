@@ -8,11 +8,10 @@ import time
 from concurrent.futures import Future, ThreadPoolExecutor
 
 import pytest
-from PySide6.QtWidgets import QApplication, QLabel, QTextBrowser
-
 from cjm_substrate_qt_kit import prefs, sessionkey as sk
 from cjm_substrate_qt_kit.bridge import FutureBridge
 from cjm_substrate_qt_kit.shell import AppShell
+from PySide6.QtWidgets import QApplication, QLabel, QTextBrowser
 
 
 @pytest.fixture(autouse=True)

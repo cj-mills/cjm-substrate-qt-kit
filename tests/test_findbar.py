@@ -1,9 +1,8 @@
 """FindBar contract: incremental search from the opening origin, wrap-around
 stepping in both directions, match paint + counter, close returns focus."""
 
-from PySide6.QtWidgets import QPlainTextEdit
-
 from cjm_substrate_qt_kit.findbar import FindBar
+from PySide6.QtWidgets import QPlainTextEdit
 
 TEXT = "alpha beta\ngamma beta\ndelta beta end"
 

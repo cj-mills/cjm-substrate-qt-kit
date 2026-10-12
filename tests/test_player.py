@@ -4,6 +4,7 @@ device-follow wiring. The sink is NOT started here (bind=False) — a real
 stream on the dev box's default output is field-verified per the paint-path
 craft — so these drive the bookkeeping and the real ffmpeg decode into the
 feeder, offscreen and silent."""
+
 import math
 import shutil
 import struct
@@ -11,9 +12,8 @@ import time
 import wave
 
 import pytest
-
-from cjm_substrate_qt_kit.player import (BYTES_PER_FRAME, CHANNELS, SAMPLE_RATE,
-                                          SpanPlayer, _Clip, _Feeder, decode_command)
+from cjm_substrate_qt_kit.player import (_Clip, _Feeder, BYTES_PER_FRAME, CHANNELS, decode_command,
+                                         SAMPLE_RATE, SpanPlayer)
 
 HAVE_FFMPEG = shutil.which("ffmpeg") is not None
 

@@ -1,8 +1,7 @@
 """Layout-role contract: registries classify by role boundary, the named
 windows land where the framework says they do, afford clamps."""
 
-from cjm_substrate_qt_kit.layout import (NAMED_WINDOWS, afford, classify,
-                                         height_tier, mode, shape)
+from cjm_substrate_qt_kit.layout import afford, classify, height_tier, mode, NAMED_WINDOWS, shape
 
 
 def test_mode_boundaries():

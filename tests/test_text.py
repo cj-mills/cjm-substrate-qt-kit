@@ -1,5 +1,6 @@
 """Tests for the text clamps (the end-keeping tail) — ported with the
 function from the tui-kit's viewport tests (work item 21145648)."""
+
 from cjm_substrate_qt_kit.text import tail
 
 

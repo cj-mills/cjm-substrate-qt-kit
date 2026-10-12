@@ -1,11 +1,10 @@
 """The keyboard contract (ruling 2bae2cc1): the numpad Enter key binds
 wherever Return binds — through the registry and through bind()."""
 
-from PySide6.QtGui import QKeySequence
-from PySide6.QtWidgets import QWidget
-
 from cjm_substrate_qt_kit.keymap import KeymapRegistry
 from cjm_substrate_qt_kit.keys import bind, enter_twins
+from PySide6.QtGui import QKeySequence
+from PySide6.QtWidgets import QWidget
 
 
 def test_enter_twins_only_for_return_bindings():

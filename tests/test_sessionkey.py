@@ -6,7 +6,6 @@ import os
 import time
 
 import pytest
-
 from cjm_substrate_qt_kit import sessionkey as sk
 
 

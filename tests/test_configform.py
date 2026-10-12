@@ -2,8 +2,8 @@
 set cycling, transient-editor parsing, overrides round-trip). SCHEMA mirrors
 the real whisper capability manifest's pydantic-emitted shape. Ported with
 the model from the tui-kit (work item 21145648)."""
-import pytest
 
+import pytest
 from cjm_substrate_qt_kit.configform import ConfigForm
 
 SCHEMA = {

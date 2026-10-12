@@ -1,10 +1,9 @@
 """KeymapRegistry contract: labelled live QActions, declaration-order
 discovery surface, runtime rebind."""
 
+from cjm_substrate_qt_kit.keymap import KeymapRegistry
 from PySide6.QtGui import QKeySequence
 from PySide6.QtWidgets import QApplication, QLineEdit, QMainWindow
-
-from cjm_substrate_qt_kit.keymap import KeymapRegistry
 
 
 def test_add_mints_live_labelled_action(app):
