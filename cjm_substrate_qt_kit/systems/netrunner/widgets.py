@@ -26,6 +26,7 @@ def section_title(s: str) -> QLabel:
 
 class ChamferHeader(QWidget):
     """Solid fill bar with the top-left corner cut. Colors come from the live theme."""
+
     clicked = Signal()
 
     def __init__(self, text: str, theme=None, height: int = 60, parent=None):

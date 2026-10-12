@@ -98,6 +98,7 @@ def _resolve_ws(value: Any, root: Optional[Path]) -> Any:
 class LaunchConfig:
     """The resolved values + where each came from ("workspace" / "prefs" /
     "cli" / "default" / "unset")."""
+
     app_id: str
     values: Dict[str, Any] = field(default_factory=dict)
     sources: Dict[str, str] = field(default_factory=dict)

@@ -31,6 +31,7 @@ class ConfigField:
     typed text through `parse` (the transient-editor escape hatch). `modified`
     is the diff-from-default flag the row paints and `overrides()` filters on.
     """
+
     key: str                        # Property name (the config dict key)
     kind: str                       # 'bool' | 'integer' | 'number' | 'string'
     default: Any = None             # Schema default (None = absent or null)
