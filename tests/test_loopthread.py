@@ -110,6 +110,7 @@ def test_each_gesture_is_one_event_in_the_db_ledger(tmp_path):
     assert w["storage"]["query_nodes"] == {"calls": 2, "s": 0.002, "rows_out": 5}
     assert w["attrs"]["write"] is True
     assert evs["probe:boom"]["outcome"] == "ValueError"
+    assert evs["probe:boom"]["attrs"]["error"] == "ValueError: no"  # the diagnosis rides along
 
 
 def test_a_poll_folds_into_one_rolling_event(tmp_path):

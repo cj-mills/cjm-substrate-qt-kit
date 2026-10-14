@@ -48,7 +48,8 @@ def main(
     argv: Optional[List[str]] = None,  # Command-line args (default: sys.argv)
 ) -> int:  # Exit code
     """`python -m cjm_substrate_qt_kit.gesturebench <module:function> --params JSON`: run the
-    driver and print the gestures it ran as JSON."""
+    driver and print the gestures it ran as JSON. Exit 1 when any gesture failed, so the
+    harness records the run as failed and keeps its output (the traceback is the diagnosis)."""
     ap = argparse.ArgumentParser(prog="gesturebench",
                                  description="Run one app's canonical gestures headlessly.")
     ap.add_argument("driver", help="The app's driver, '<module>:<function>'")
@@ -56,8 +57,9 @@ def main(
                     help="The driver's params as JSON (db, manifests_dir, journals, placeholders)")
     args = ap.parse_args(argv)
     ran = load_driver(args.driver)(json.loads(args.params))
-    print(json.dumps({"driver": args.driver, "gestures": list(ran or [])}))
-    return 0
+    ran = list(ran or [])
+    print(json.dumps({"driver": args.driver, "gestures": ran}))
+    return 1 if any(": " in name for name in ran) else 0
 
 
 if __name__ == "__main__":  # runtime-order: must trail every def

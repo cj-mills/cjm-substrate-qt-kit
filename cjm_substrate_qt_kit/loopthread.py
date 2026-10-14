@@ -188,6 +188,7 @@ class LoopThreadSession:
             yield
         except BaseException as e:
             outcome = type(e).__name__
+            run.attrs["error"] = f"{outcome}: {e}"[:500]  # the diagnosis rides with the measurement
             raise
         finally:
             timings.CURRENT_RUN.reset(token)
@@ -290,6 +291,7 @@ async def _armed(coro, run, submitted: float, finish=None):  # The coroutine's r
         return await coro
     except BaseException as e:
         outcome = type(e).__name__
+        run.attrs["error"] = f"{outcome}: {e}"[:500]  # the diagnosis rides with the measurement
         raise
     finally:
         timings.CURRENT_RUN.reset(token)

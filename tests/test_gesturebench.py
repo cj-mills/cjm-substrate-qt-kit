@@ -31,3 +31,13 @@ def test_ladder_records_a_failure_and_goes_on(capsys):
     assert ladder([("a", lambda: 1), ("b", boom), ("c", lambda: None)]) == [
         "a", "b: RuntimeError", "c"]
     assert "gesture b failed" in capsys.readouterr().err
+
+
+def failing_driver(params):
+    return ladder([("ok", lambda: None), ("bad", lambda: 1 / 0)])
+
+
+def test_main_exits_one_when_a_gesture_failed(capsys):
+    """A failed gesture fails the run, so the harness keeps its output (design detail 4389a579)."""
+    assert main(["test_gesturebench:failing_driver"]) == 1
+    assert json.loads(capsys.readouterr().out)["gestures"] == ["ok", "bad: ZeroDivisionError"]
