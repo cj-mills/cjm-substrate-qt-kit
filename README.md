@@ -13,6 +13,7 @@ The ONE Qt foundation library for the cjm-substrate application lane (ruling 8b7
 - **`cjm_substrate_qt_kit.formdialog`** — Kit FormShell (work item d55292f9): the frameless modal FORM chrome —
 - **`cjm_substrate_qt_kit.frame`** — The window frame — client-side decorations as a shell surface (ruling
 - **`cjm_substrate_qt_kit.gallery`** — The gallery SEED: every component class under any design system + mode
+- **`cjm_substrate_qt_kit.gesturebench`** — Run one app's canonical gestures headlessly -- the scale harness's gesture leg.
 - **`cjm_substrate_qt_kit.hitl`** — Kit HITL confirm chrome (work item 55bcc3c5, the payload-agnostic half of
 - **`cjm_substrate_qt_kit.icons`** — Icons recolored at runtime from the vendored Lucide subset (ISC; the
 - **`cjm_substrate_qt_kit.jobs`** — The JOB SEAT (ruling 2bae2cc1 (5)): a progress surface for long-running
@@ -83,6 +84,12 @@ The ONE Qt foundation library for the cjm-substrate application lane (ruling 8b7
 - `row` _function_
 - `section` _function_
 
+### `cjm_substrate_qt_kit.gesturebench`
+
+- `ladder` _function_ — Run a driver's read ladder step by step: a failing gesture is recorded by the seam (its
+- `load_driver` _function_ — Import the driver named `module:function` (a malformed name refuses loudly).
+- `main` _function_ — `python -m cjm_substrate_qt_kit.gesturebench <module:function> --params JSON`: run the
+
 ### `cjm_substrate_qt_kit.hitl`
 
 - `HitlPanel` _class_ — The composed confirm panel: worklist (stretch) over the verdict strip
@@ -147,6 +154,7 @@ The ONE Qt foundation library for the cjm-substrate application lane (ruling 8b7
 ### `cjm_substrate_qt_kit.loopthread`
 
 - `LoopThreadSession` _class_ — Owns one daemon asyncio loop thread; subclasses put their subsystem's
+- `coro_name` _function_ — A coroutine's own code name, leading underscores stripped (`_node` -> `node`): the
 - `op_write` _function_ — One session write gesture = ONE op clock window (design 8f6f2343, amendment efd659a1's
 
 ### `cjm_substrate_qt_kit.modal`
