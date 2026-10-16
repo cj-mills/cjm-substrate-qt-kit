@@ -20,7 +20,7 @@ import os
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, Optional, Sequence, Tuple, Union
 
 ENV_VAR = "CJM_SESSION"
 POINTER_NAME = "current-session"
@@ -152,24 +152,3 @@ def mint(session: Any, journal_paths: Sequence[Union[str, Path]] = (), *,
     path = pointer_path(journal_paths)
     pointer = str(write_pointer(path, key)) if path is not None else None
     return {"key": key, "pointer": pointer, "previous": previous}
-
-
-def journaled_ops_for(key: str, journal_paths: Sequence[Union[str, Path]]) -> List[dict]:
-    """Every journaled op attributed to `key` besides its own registrations —
-    the retract guard's evidence (an empty mint has none)."""
-    try:
-        from cjm_context_graph_primitives.journal import read_journal
-    except ImportError:
-        return []
-    out: List[dict] = []
-    for p in journal_paths:
-        try:
-            ops = read_journal(str(p))
-        except OSError:
-            continue
-        for op in ops:
-            attributed = op.get("session") or (op.get("args") or {}).get("session")
-            own = (op.get("verb") == "session" and (op.get("args") or {}).get("key") == key)
-            if attributed == key and not own:
-                out.append(op)
-    return out

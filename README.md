@@ -212,7 +212,6 @@ The ONE Qt foundation library for the cjm-substrate application lane (ruling 8b7
 - `adopt` _function_ — Adopt the live key for this process: (key, source). An inherited
 - `boot_prompt` _function_ — The start-ritual boot prompt the mint gesture puts on the clipboard.
 - `is_repeat` _function_ — A just-minted live key means this press is a key repeat / double tap
-- `journaled_ops_for` _function_ — Every journaled op attributed to `key` besides its own registrations —
 - `mint` _function_ — The ONE mint: refuse a repeat, adopt the new key BEFORE the journaled
 - `mint_signal` _function_ — The transcript-mapping PREFIX the boot prompt must carry (substring
 - `new_key` _function_ — A session key IS its mint timestamp (local time).

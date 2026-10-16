@@ -9,11 +9,14 @@ Qt-free on purpose: sessions test headless, and non-Qt callers (probes,
 scripts) can drive them the same way.
 
 The shell ruling (2bae2cc1 (2)) collapses the six per-app subclasses onto
-this base's OPEN / JOURNAL / CLOSE pattern: start() spins the loop and runs
-the on_open() hook ON it (open the graph, the capability stack); journal()
-mirrors a landed write into the writes journal in cg-write's exact arg
-shape (the db is a projection — an unjournaled write is lost on the next
-rebuild); close() runs on_close() and stops the thread. The Qt half — the
+this base's OPEN / WRITE / CLOSE pattern: start() spins the loop and runs
+the on_open() hook ON it (open the graph, the capability stack); a write is
+an `op_write` gesture -- ONE coroutine on the loop, run inside the app's unit
+of work (a projection graph's `writes.write_window`: the journal family's
+lock and heal, plan -> append -> apply per op; ruling d2d05e78), so a live
+write is the replay's applier and the db never runs ahead of its journal;
+close() runs on_close() and stops the thread. The base takes no journal
+dependency of its own (it serves the layer's seats too). The Qt half — the
 Future -> Signal bridge — is `bridge.FutureBridge`, owned by the shell."""
 
 import asyncio
@@ -92,21 +95,6 @@ class LoopThreadSession:
     async def on_open(self) -> None:
         """Subclass hook, run ON the loop right after it spins: open the
         subsystem (a graph, a capability stack) once per session."""
-
-    def journal(self, verb: str, args: Dict[str, Any]) -> Optional[str]:
-        """Mirror a LANDED write into the writes journal (journal_paths[0])
-        with the exact arg shape cg-write's CLI records — replay / rebuild
-        treat app writes and cg-writes identically. Returns the journal path
-        written, None when the session has no journal."""
-        if not self.journal_paths:
-            return None
-        try:
-            from cjm_context_graph_primitives.journal import append_write
-        except ImportError as e:
-            raise RuntimeError("cjm-context-graph-primitives is required to journal "
-                               "graph writes from a session") from e
-        append_write(self.journal_paths[0], verb, args)
-        return self.journal_paths[0]
 
     def submit(self, coro, gesture: Optional[str] = None) -> Future:
         """Schedule a coroutine on the loop thread; resolves there. The caller's op clock
@@ -301,13 +289,15 @@ async def _armed(coro, run, submitted: float, finish=None):  # The coroutine's r
 
 def op_write(fn):
     """One session write gesture = ONE op clock window (design 8f6f2343, amendment efd659a1's
-    grain for apps): the db write the method submits and the journal op it mirrors carry the
-    same time, so the live db equals its rebuild. Wraps sync methods (the window rides into the
-    loop coroutine through `submit`) and coroutine methods (the window opens on the loop);
+    grain for apps): every op the gesture plans, appends and applies carries the same time, so
+    the live db equals its rebuild. A write gesture is ONE coroutine method (ruling d2d05e78 (1)):
+    the unit of work's lock and write observer are context-scoped, so a gesture split across
+    submits would be several units. Wraps sync methods (the window rides into the loop coroutine
+    through `submit`) and coroutine methods (the window opens on the loop);
     a pass-through when cjm-context-graph-primitives is absent (no journal, no clock). The
     kit's name for primitives' `op_clocked`. The same grain is ONE measured gesture (design
-    detail 4389a579): every submit the method makes folds into it, the journal mirror's
-    appends included."""
+    detail 4389a579): every submit the method makes folds into it, the journal appends
+    included."""
     clocked = op_clocked(fn) if op_clocked is not None else fn
     if timings is None:
         return clocked
